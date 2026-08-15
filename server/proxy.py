@@ -2,80 +2,23 @@
 # -*- coding: utf-8 -*-
 """
 泠风吹梦的小站 - 本地代理服务器
-职责：静态文件服务 + DeepSeek API 中转（Key 仅在服务端，不暴露给前端）
+职责：静态文件服务 + 音乐播放源解析/下载代理
 启动：python server/proxy.py
 """
 import http.server
 import json
 import os
-import random
 import sys
-import time
 import urllib.request
 import urllib.error
-import uuid
 from urllib.parse import urlparse, parse_qs, quote
 
 # 避免生成 __pycache__ 字节码缓存，保持项目目录整洁
 sys.dont_write_bytecode = True
 
 PORT = 8080
-DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
-MODEL = "deepseek-chat"
-
-# 人机验证配置
-CAPTCHA_TTL = 300      # 验证码 5 分钟内有效
-SESSION_TTL = 3600     # 验证通过后的会话 1 小时内有效
-CHALLENGES = {}        # 验证码 id -> {"answer": str, "expires": float}
-SESSIONS = {}          # 会话 token -> 过期时间戳
-
-# 服务端每日 token 总量配额（全局，所有用户共享；按 usage.total_tokens 累计，每天重置）
-DAILY_TOKEN_LIMIT = 2000
-USAGE = {"date": "", "used": 0}   # 全局当日用量
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-USAGE_FILE = os.path.join(BASE_DIR, "server", "usage.json")
-
-
-def load_usage():
-    # 启动时恢复当日用量；跨日期则自动重置
-    global USAGE
-    today = time.strftime("%Y-%m-%d")
-    try:
-        if os.path.exists(USAGE_FILE):
-            with open(USAGE_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if data.get("date") == today:
-                USAGE = {"date": today, "used": int(data.get("used", 0))}
-                return
-    except Exception:
-        pass
-    USAGE = {"date": today, "used": 0}
-
-
-def save_usage():
-    try:
-        with open(USAGE_FILE, "w", encoding="utf-8") as f:
-            json.dump(USAGE, f, ensure_ascii=False)
-    except Exception:
-        pass
-
-
-def load_api_key():
-    key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
-    if key:
-        return key
-    key_file = os.path.join(BASE_DIR, "server", "key.txt")
-    if os.path.exists(key_file):
-        with open(key_file, "r", encoding="utf-8") as f:
-            key = f.read().strip()
-            if key:
-                return key
-    return ""
-
-
-API_KEY = load_api_key()
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -94,9 +37,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self._is_forbidden():
             self.send_error(404)
-            return
-        if self.path == "/api/captcha":
-            self._handle_captcha()
             return
         if self.path.startswith("/api/music/download"):
             self._handle_music_download()
@@ -124,28 +64,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        if self.path == "/api/verify":
-            self._handle_verify()
-            return
-        if self.path == "/api/chat":
-            self._handle_chat()
-            return
         self.send_error(404)
-
-    def _handle_captcha(self):
-        # 生成一道简单算术题作为人机验证，答案仅存于服务端内存
-        a = random.randint(1, 9)
-        b = random.randint(1, 9)
-        op = random.choice(("+", "-"))
-        if op == "-" and a < b:
-            a, b = b, a
-        answer = str(a + b) if op == "+" else str(a - b)
-        cid = uuid.uuid4().hex
-        CHALLENGES[cid] = {"answer": answer, "expires": time.time() + CAPTCHA_TTL}
-        self._send_json(200, {
-            "id": cid,
-            "question": "%d %s %d = ?" % (a, op, b),
-        })
 
     def _handle_music_download(self):
         # 音乐下载代理：后端转发到真实 mp3，规避跨域并统一设置下载响应头
@@ -458,127 +377,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self._send_json(502, {"error": {"message": str(e)}})
 
-    def _handle_verify(self):
-        try:
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length).decode("utf-8")
-            req = json.loads(body)
-        except Exception:
-            self._send_json(400, {"error": {"message": "无效的请求体"}})
-            return
-
-        cid = req.get("id", "")
-        answer = str(req.get("answer", "")).strip()
-        now = time.time()
-        ch = CHALLENGES.get(cid)
-        if not ch:
-            self._send_json(400, {"error": {"message": "验证码不存在或已使用，请刷新"}})
-            return
-        if ch["expires"] < now:
-            CHALLENGES.pop(cid, None)
-            self._send_json(400, {"error": {"message": "验证码已过期，请刷新"}})
-            return
-        # 无论对错，验证码一次性使用，防止穷举
-        CHALLENGES.pop(cid, None)
-        if answer != ch["answer"]:
-            self._send_json(400, {"error": {"message": "答案错误，请重试"}})
-            return
-
-        token = uuid.uuid4().hex
-        SESSIONS[token] = now + SESSION_TTL
-        self._send_json(200, {"token": token})
-
-    def _handle_chat(self):
-        try:
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length).decode("utf-8")
-            req = json.loads(body)
-        except Exception:
-            self._send_json(400, {"error": {"message": "无效的请求体"}})
-            return
-
-        token = req.get("token", "")
-        if not token or SESSIONS.get(token, 0) < time.time():
-            self._send_json(401, {"error": {"message": "请先完成人机验证"}})
-            return
-
-        today = time.strftime("%Y-%m-%d")
-        if USAGE["date"] != today:
-            USAGE["date"] = today
-            USAGE["used"] = 0
-        if USAGE["used"] >= DAILY_TOKEN_LIMIT:
-            self._send_json(429, {"error": {"message": "服务端token已耗尽，请明天再来吧"}})
-            return
-
-        messages = req.get("messages")
-        if not isinstance(messages, list) or not messages:
-            self._send_json(400, {"error": {"message": "messages 不能为空"}})
-            return
-
-        payload = json.dumps({
-            "model": MODEL,
-            "messages": messages,
-            "stream": True,
-        }).encode("utf-8")
-
-        request = urllib.request.Request(
-            DEEPSEEK_API_URL,
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + API_KEY,
-            },
-            method="POST",
-        )
-
-        try:
-            upstream = urllib.request.urlopen(request, timeout=120)
-        except urllib.error.HTTPError as e:
-            err = e.read()
-            self.send_response(e.code)
-            self.send_header("Content-Type", "application/json")
-            self._send_cors()
-            self.send_header("Content-Length", str(len(err)))
-            self.end_headers()
-            self.wfile.write(err)
-            return
-        except Exception as e:
-            self._send_json(502, {"error": {"message": "DeepSeek 调用失败：%s" % e}})
-            return
-
-        # 流式转发：边读边写，前端逐步渲染
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Connection", "close")
-        self._send_cors()
-        self.end_headers()
-        try:
-            for line in upstream:
-                self.wfile.write(line)
-                self.wfile.flush()
-                self._accumulate_usage(line)
-        except Exception:
-            pass
-        finally:
-            upstream.close()
-
-    def _accumulate_usage(self, line):
-        # 从流式 chunk 中提取 usage.total_tokens 并累加到全局当日用量
-        try:
-            text = line.decode("utf-8", "ignore").strip()
-            if not text.startswith("data:"):
-                return
-            payload = text[5:].strip()
-            if not payload or payload == "[DONE]":
-                return
-            obj = json.loads(payload)
-            usage = obj.get("usage")
-            if usage and isinstance(usage.get("total_tokens"), int):
-                USAGE["used"] += usage["total_tokens"]
-                save_usage()
-        except Exception:
-            pass
-
     def _send_cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
@@ -598,9 +396,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    if not API_KEY:
-        print("[警告] 未配置 API Key：请在 server/key.txt 写入 Key，或设置环境变量 DEEPSEEK_API_KEY")
-    load_usage()
     server = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print("站点已启动：http://localhost:%d" % PORT)
     print("按 Ctrl+C 停止")

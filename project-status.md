@@ -10,7 +10,7 @@
 ## 二、目标
 
 - 打造结构清晰、极简风格的个人小站。
-- 逐步落实各入口（开发的小玩意 / 网速测试 / 与deepseek聊天 / 小站介绍）的具体功能。
+- 逐步落实各入口（开发的小玩意 / 网速测试 / 小站介绍）的具体功能。
 - 最终通过内网穿透或已有域名对外开放访问。
 
 ## 三、开发重点（约束与规则）
@@ -27,15 +27,14 @@
 ### 已完成
 
 - [x] 站名确定：泠风吹梦的小站。
-- [x] index.html 主界面：顶部导航（5 项）+ 底部灰色小字 `power by trae`。
+- [x] index.html 主界面：顶部导航（4 项）+ 底部灰色小字 `power by trae`。
 - [x] 小站介绍：完善页面内容（含制作与来源信息）。
 - [x] 开发的小玩意：新增「星环」星际即时策略游戏卡片（BETA 标签），游戏目录移至 games/starring。
 - [x] 开发的小玩意：新增「音乐播放器」（在线搜索 + 正在播放 + 播放控制 + 手动添加音源），页面 pages/music.html，逻辑 js/music.js。
 - [x] 开发的小玩意：新增「文件查找工具」卡片（点击下载 FileSearch.exe），文件移至 downloads/。
 - [x] 开发的小玩意：新增「非常神秘的项目」卡片（ysnb），页面移至 pages/shenmi.html。
 - [x] 网速测试：实现延迟 + 下载速度测试（到本站），页面 pages/speedtest.html，逻辑 js/speedtest.js，测速文件 speedtest/100mb.bin。
-- [x] 与 DeepSeek 聊天：实现多轮对话（流式输出），页面 pages/chat.html，逻辑 js/chat.js，后端代理 server/proxy.py（Key 存 server/key.txt）。含人机验证（算术题）与全局每日 2000 token 配额限制。
-- [x] 全站极简样式 css/style.css（统一变量，含日/夜间主题、卡片、播放器、网速测试、聊天）。
+- [x] 全站极简样式 css/style.css（统一变量，含日/夜间主题、卡片、播放器、网速测试）。
 - [x] 导航高亮 + 日/夜间模式切换（右下角按钮，交叉淡入淡出）js/main.js。
 - [x] rules.md 同步「结构」栏并整理 importance。
 - [x] 主文件夹重命名：d:\项目 → d:\lingsite（英文规范名）。
@@ -53,6 +52,7 @@
 - [x] 音乐播放器支持后台播放：注册 Media Session（锁屏/通知栏播放控制与歌曲信息）+ audio 增加 playsinline + 切回前台自动恢复被浏览器挂起的 AudioContext（修复手机切后台/锁屏后音乐停止）。
 - [x] 音频可视化：页面右侧独立面板（顶部与播放器卡片对齐），在线音源走真实频谱（Web Audio AnalyserNode 驱动 10 根柱），本地音源走装饰动画；播放列表按声道打标签（多声道 >2 / 双声道 =2 / 单声道不标）。
 - [x] 公益/聚合音源接入框架：后端 /api/music/resolve 代理（收集聚合/新澜/聆川/聚合API/星海 五种播放源，规避跨域），前端新增「播放源」下拉（搜索仍用 Meting，播放可走新源，失败自动回退）；实测多数第三方接口已失效/维护中，仅「收集聚合-QQ(cyapi.top)」可用，框架待恢复。
+- [x] 站内播放器适配：站内软导航（点击导航不整页刷新，音乐不断，播放器以底部可拖动迷你卡片常驻，liquid glass 玻璃质感），星环游戏 / 神秘彩蛋页用全屏 iframe 承载（游戏在独立文档中运行，音乐不中断）。
 
 ### 待办
 
@@ -62,34 +62,30 @@
 ## 五、重要上下文
 
 - 站名：泠风吹梦的小站。
-- 导航共 5 项：首页、开发的小玩意、网速测试、与deepseek聊天、小站介绍。
-- 5 项入口均已落实。
-- 技术栈：前端纯静态 HTML / CSS / JS；后端为 Python 代理 server/proxy.py（仅静态文件服务 + DeepSeek 中转，无第三方依赖）。
+- 导航共 4 项：首页、开发的小玩意、网速测试、小站介绍。
+- 4 项入口均已落实。
+- 技术栈：前端纯静态 HTML / CSS / JS；后端为 Python 代理 server/proxy.py（仅静态文件服务 + 音乐播放源解析/下载代理，无第三方依赖）。
 - 项目根目录：d:\lingsite。
 - 主文件夹命名禁止中文，已由「项目」重命名为 lingsite。
 - 日/夜间模式：右下角按钮切换，主题存 localStorage，首次访问跟随系统偏好，切换时交叉淡入淡出（旧主题渐隐、新主题渐显）。
 - 音乐播放器音源：在线搜索走 Meting 公开 API（支持跨域），音源下拉可选网易云（netease）/ QQ音乐（tencent）/ 酷狗（kugou）；手动添加 mp3 直链持久化到 localStorage。列表每首歌旁有下载按钮，走后端 /api/music/download 代理下载 mp3。
 - 网速测试：需通过 HTTP 方式访问（file:// 下 fetch 会被浏览器拦截）。
-- 与 DeepSeek 聊天：API Key 存 server/key.txt（仅服务端，禁止泄露/提交到 git）；前端只调 /api/chat，由 proxy.py 转发。含人机验证（算术题）与全局每日 2000 token 配额（服务端总量，所有用户共享，耗尽提示「服务端token已耗尽，请明天再来吧」）。
 
 ## 六、目录结构
 
 ```
 d:\lingsite
-├─ index.html            主界面（5 项导航 + power by trae）
+├─ index.html            主界面（4 项导航 + power by trae）
 ├─ rules.md              项目规则与结构、importance
 ├─ project-status.md     本文件（项目状态汇总）
 ├─ css\
-│  └─ style.css          全站极简样式（含日/夜间主题、卡片、播放器、网速测试、聊天）
+│  └─ style.css          全站极简样式（含日/夜间主题、卡片、播放器、网速测试）
 ├─ js\
 │  ├─ main.js            导航高亮 + 日/夜间切换
 │  ├─ music.js           音乐播放器逻辑
-│  ├─ speedtest.js       网速测试逻辑
-│  └─ chat.js            与 DeepSeek 聊天逻辑
+│  └─ speedtest.js       网速测试逻辑
 ├─ server\
-│  ├─ proxy.py           本地代理（静态服务 + /api/chat 中转 + /api/music/download 下载代理 + /api/music/info 音频信息 + /api/music/resolve 播放源解析）
-│  ├─ key.txt            DeepSeek API Key（仅服务端）
-│  └─ usage.json         每日 token 用量持久化（重启不丢失）
+│  └─ proxy.py           本地代理（静态服务 + /api/music/download 下载代理 + /api/music/info 音频信息 + /api/music/resolve 播放源解析）
 ├─ games\
 │  └─ starring\          星环·天穹 星际即时策略游戏（BETA）
 ├─ downloads\
@@ -100,7 +96,6 @@ d:\lingsite
    ├─ tools.html         开发的小玩意（卡片）
    ├─ music.html         音乐播放器（搜索/手动添加音源）
    ├─ speedtest.html     网速测试（延迟/下载）
-   ├─ chat.html          与 DeepSeek 聊天
    ├─ shenmi.html        非常神秘的项目（ysnb）
    └─ about.html         小站介绍（已完善）
 ```

@@ -1,3 +1,7 @@
 # 敏感文件（禁止提交到远程）
 server/key.txt
 server/usage.json
+
+# Python 缓存
+__pycache__/
+*.pyc

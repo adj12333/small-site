@@ -15,6 +15,8 @@
   var searchTimer = null;
   var searching = false;
   var searchAbort = null;   // 取消过期搜索请求，避免快速输入时旧结果覆盖新结果
+  var historyList = [];     // 播放历史（会话内，记录实际播放过的歌曲）
+  var historyMode = false;  // 是否处于「播放历史」列表视图
 
   var searchEl = document.getElementById('music-search');
   var sourceEl = document.getElementById('music-source');
@@ -34,6 +36,7 @@
   var urlEl = document.getElementById('song-url');
   var moreBtn = document.getElementById('btn-more');
   var moreMenu = document.getElementById('more-menu');
+  var historyBtn = document.getElementById('btn-history');
   var qualityList = document.getElementById('quality-list');
   var spatialToggle = document.getElementById('spatial-toggle');
   var multichannelToggle = document.getElementById('multichannel-toggle');
@@ -259,8 +262,11 @@
         var sum = 0;
         for (var j = binStart; j < binEnd; j++) sum += analyserData[j];
         var avg = sum / (binEnd - binStart);
-        // 正上方及向右 3 根柱对应最低频段，能量常顶满，加一点负增益
-        var gain = (i < 4) ? 0.85 : 1;
+        // 最低频段（正上方及向右 3 根）能量常顶满，加一点负增益；
+        // 左上方高频段能量偏弱，加一点正增益让其更跟手。
+        var gain = 1;
+        if (i < 4) gain = 0.85;
+        else if (i >= 48) gain = 1.12;
         var scale = 0.15 + (avg / 255) * 0.68 * gain;
         setBarTransform(bars[i], i, count, scale);
       }
@@ -538,11 +544,105 @@
   }
 
   function renderPlaylist() {
-    if (isSearchMode()) {
+    if (historyMode) {
+      renderHistory();
+    } else if (isSearchMode()) {
       renderOnlineResults();
     } else {
       renderUserSongs();
     }
+  }
+
+  function addToHistory(song, isOnline) {
+    var key = isOnline ? song.url : song.src;
+    if (!key) return;
+    // 去重：同一首歌只保留最新一次，移到列表顶部
+    for (var i = 0; i < historyList.length; i++) {
+      if (historyList[i].key === key) {
+        historyList.splice(i, 1);
+        break;
+      }
+    }
+    historyList.unshift({ key: key, type: isOnline ? 'online' : 'local', source: sourceEl.value, song: song });
+    if (historyList.length > 100) historyList.length = 100;
+  }
+
+  function renderHistory() {
+    playlistEl.innerHTML = '';
+    if (!historyList.length) {
+      emptyHint('暂无播放历史');
+      return;
+    }
+    historyList.forEach(function (entry, index) {
+      var song = entry.song;
+      var item = makeItem();
+      item.li.className = 'playlist-item';
+      item.li.setAttribute('data-index', index);
+      item.titleText.textContent = song.title;
+      item.artist.textContent = entry.type === 'online' ? (song.author || '未知歌手') : (song.artist || '未知歌手');
+
+      var typeTag = document.createElement('span');
+      typeTag.className = 'history-type';
+      typeTag.textContent = entry.type === 'online' ? '在线' : '本地';
+      item.titleText.parentNode.appendChild(typeTag);
+
+      item.li.addEventListener('click', function () {
+        playHistoryEntry(historyList[parseInt(item.li.getAttribute('data-index'), 10)]);
+      });
+      playlistEl.appendChild(item.li);
+    });
+  }
+
+  function playHistoryEntry(entry) {
+    if (!entry) return;
+    var song = entry.song;
+
+    if (entry.type === 'local') {
+      // 本地歌曲：若仍存在于手动列表，复用列表索引；否则直接播放其地址
+      var idx = -1;
+      for (var i = 0; i < userSongs.length; i++) {
+        if (userSongs[i].src === song.src) { idx = i; break; }
+      }
+      if (idx >= 0) {
+        playUser(idx);
+        return;
+      }
+      playToken++;
+      if (resolveAbort) resolveAbort.abort();
+      clearChannelQueue();
+      currentIndex = -1;
+      currentOnline = -1;
+      nowPlaying = { type: 'local', baseUrl: song.src, server: '', title: song.title, artist: song.artist || '未知歌手' };
+      setVisualizerMode(false);
+      audio.src = song.src;
+      safePlay();
+      npTitle.textContent = song.title;
+      npArtist.textContent = song.artist || '未知歌手';
+      syncMini();
+      refreshAudioInfo();
+      updateMediaSession();
+      return;
+    }
+
+    // 在线歌曲：用记录时的音源解析播放地址
+    if (resolveAbort) resolveAbort.abort();
+    resolveAbort = new AbortController();
+    var token = ++playToken;
+    clearChannelQueue();
+    currentIndex = -1;
+    currentOnline = -1;
+    setVisualizerMode(true);
+    resolvePlayUrl(song, resolveAbort.signal, entry.source).then(function (url) {
+      if (token !== playToken) return;
+      nowPlaying = { type: 'online', baseUrl: url, server: entry.source, title: song.title, artist: song.author || '未知歌手' };
+      audio.src = url;
+      safePlay();
+      npTitle.textContent = song.title;
+      npArtist.textContent = song.author || '未知歌手';
+      syncMini();
+      refreshAudioInfo();
+      updateMediaSession();
+    });
   }
 
   function makeItem() {
@@ -683,6 +783,7 @@
     playBtn.setAttribute('aria-label', '播放');
     setVisualizerMode(false);
     updateMediaSession();
+    syncMini();
   }
 
   function playUser(index) {
@@ -699,12 +800,14 @@
     currentIndex = index;
     currentOnline = -1;
     var song = userSongs[index];
+    addToHistory(song, false);
     nowPlaying = { type: 'local', baseUrl: song.src, server: '', title: song.title, artist: song.artist || '未知歌手' };
     setVisualizerMode(false);
     audio.src = song.src;
     safePlay();
     npTitle.textContent = song.title;
     npArtist.textContent = song.artist || '未知歌手';
+    syncMini();
     refreshAudioInfo();
     renderPlaylist();
     updateMediaSession();
@@ -722,9 +825,9 @@
     return !!(url && url.indexOf('meting') !== -1);
   }
 
-  function resolvePlayUrl(song, signal) {
+  function resolvePlayUrl(song, signal, source) {
     var provider = resolveSourceEl.value;
-    var lxSource = SEARCH_TO_LX[sourceEl.value] || '';
+    var lxSource = SEARCH_TO_LX[source || sourceEl.value] || '';
     var songId = extractSongId(song.url);
     if (!provider || !lxSource || !songId) return Promise.resolve(song.url);
     var url = '/api/music/resolve?provider=' + encodeURIComponent(provider) +
@@ -744,6 +847,7 @@
   function playOnline(index) {
     if (index < 0 || index >= onlineResults.length) return;
     var song = onlineResults[index];
+    addToHistory(song, true);
     if (resolveAbort) resolveAbort.abort();
     resolveAbort = new AbortController();
     var token = ++playToken;
@@ -759,6 +863,7 @@
       safePlay();
       npTitle.textContent = song.title;
       npArtist.textContent = song.author || '未知歌手';
+      syncMini();
       refreshAudioInfo();
       renderPlaylist();
       updateMediaSession();
@@ -827,6 +932,13 @@
     var kw = searchEl.value.trim();
     if (searchTimer) clearTimeout(searchTimer);
 
+    // 开始在线搜索即退出播放历史视图，恢复正常列表
+    if (historyMode) {
+      historyMode = false;
+      historyBtn.classList.remove('active');
+      historyBtn.setAttribute('aria-pressed', 'false');
+    }
+
     if (!kw) {
       if (searchAbort) searchAbort.abort();
       clearChannelQueue();
@@ -858,6 +970,22 @@
   moreBtn.addEventListener('click', function (e) {
     e.stopPropagation();
     setMoreMenu(moreMenu.hidden);
+  });
+
+  historyBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    historyMode = !historyMode;
+    historyBtn.classList.toggle('active', historyMode);
+    historyBtn.setAttribute('aria-pressed', historyMode ? 'true' : 'false');
+    if (historyMode) {
+      // 进入历史视图时清空搜索状态，避免与在线搜索列表冲突
+      if (searchAbort) searchAbort.abort();
+      clearChannelQueue();
+      onlineResults = [];
+      searching = false;
+      searchEl.value = '';
+    }
+    renderPlaylist();
   });
 
   document.addEventListener('click', function (e) {
@@ -924,6 +1052,7 @@
     playBtn.setAttribute('aria-label', '暂停');
     visualizer.classList.add('playing');
     updateMediaSession();
+    syncMini();
     if (visualizer.classList.contains('real')) {
       ensureGraph().then(startSpectrum).catch(function () {
         visualizer.classList.remove('real');
@@ -939,6 +1068,7 @@
     visualizer.classList.remove('playing');
     stopSpectrum();
     updateMediaSession();
+    syncMini();
   });
 
   audio.addEventListener('ended', function () {
@@ -990,6 +1120,241 @@
       audioCtx.resume();
     }
   });
+
+  // ================= 小站适配：站内软导航 + 底部迷你播放器卡片 =================
+  // 目标：在站内切换页面时音乐不中断，播放器以底部可拖动卡片常驻；切后台用系统媒体控制继续播放。
+
+  var MUSIC_TITLE = document.title;
+  var MUSIC_BASE = location.href;   // 音乐页初始地址，用作软导航相对链接的解析基准
+
+  // 1) 底部迷你播放器卡片
+  var mini = document.createElement('div');
+  mini.className = 'mini-player';
+  mini.hidden = true;
+  mini.innerHTML =
+    '<div class="mini-drag" aria-hidden="true"></div>' +
+    '<div class="mini-body">' +
+      '<div class="mini-cover" aria-hidden="true">♪</div>' +
+      '<div class="mini-info">' +
+        '<div class="mini-title"></div>' +
+        '<div class="mini-artist"></div>' +
+      '</div>' +
+      '<button type="button" class="mini-btn mini-play"></button>' +
+      '<button type="button" class="mini-btn mini-close" aria-label="关闭">×</button>' +
+    '</div>';
+  document.body.appendChild(mini);
+  var miniPlayBtn = mini.querySelector('.mini-play');
+  var miniCloseBtn = mini.querySelector('.mini-close');
+  var miniTitle = mini.querySelector('.mini-title');
+  var miniArtist = mini.querySelector('.mini-artist');
+  var miniDrag = mini.querySelector('.mini-drag');
+  var miniCover = mini.querySelector('.mini-cover');
+
+  var isMusicView = true;     // 当前是否处于音乐页视图
+  var savedMusicMain = null;  // 离开音乐页时保存的音乐页 <main> 节点
+
+  function syncMini() {
+    var has = !!nowPlaying.type;
+    mini.hidden = !has || isMusicView;
+    if (!has) return;
+    miniTitle.textContent = nowPlaying.title;
+    miniArtist.textContent = nowPlaying.artist || '';
+    miniPlayBtn.innerHTML = audio.paused ? PLAY_SVG : PAUSE_SVG;
+    miniPlayBtn.setAttribute('aria-label', audio.paused ? '播放' : '暂停');
+  }
+
+  miniPlayBtn.addEventListener('click', function () { togglePlay(); });
+  miniCloseBtn.addEventListener('click', function () {
+    stopPlayback();
+    mini.hidden = true;
+  });
+  miniCover.addEventListener('click', function () {
+    navigateTo(MUSIC_BASE);  // 点击音乐图标回到播放器
+  });
+
+  // 2) 拖动：按住卡片顶部边框拖动
+  (function () {
+    var dragging = false;
+    var startX = 0, startY = 0, origLeft = 0, origTop = 0;
+    function setPos(x, y) {
+      mini.style.left = x + 'px';
+      mini.style.top = y + 'px';
+      mini.style.bottom = 'auto';
+      mini.style.transform = 'none';
+    }
+    miniDrag.addEventListener('pointerdown', function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      e.preventDefault();
+      dragging = true;
+      try { miniDrag.setPointerCapture(e.pointerId); } catch (err) {}
+      var rect = mini.getBoundingClientRect();
+      startX = e.clientX;
+      startY = e.clientY;
+      origLeft = rect.left;
+      origTop = rect.top;
+      mini.classList.add('dragging');
+    });
+    miniDrag.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      var rect = mini.getBoundingClientRect();
+      var x = Math.max(0, Math.min(origLeft + (e.clientX - startX), window.innerWidth - rect.width));
+      var y = Math.max(0, Math.min(origTop + (e.clientY - startY), window.innerHeight - rect.height));
+      setPos(x, y);
+    });
+    function endDrag(e) {
+      if (!dragging) return;
+      dragging = false;
+      mini.classList.remove('dragging');
+      try { if (e && e.pointerId !== undefined) miniDrag.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+    miniDrag.addEventListener('pointerup', endDrag);
+    miniDrag.addEventListener('pointercancel', endDrag);
+  })();
+
+  // 3) 软导航：站内页面切换，保持 audio 常驻
+  var PAGE_SCRIPTS = {
+    'speedtest.html': '../js/speedtest.js'
+  };
+
+  // 全屏 iframe：承载星环游戏 / 神秘彩蛋页等特殊页面，游戏在独立文档中运行，音乐不断
+  var specialFrame = document.createElement('iframe');
+  specialFrame.className = 'special-frame';
+  specialFrame.hidden = true;
+  specialFrame.setAttribute('aria-label', '特殊页面');
+  specialFrame.setAttribute('allowfullscreen', '');
+  document.body.appendChild(specialFrame);
+
+  function isMusicUrl(url) {
+    return url.toLowerCase().indexOf('music.html') !== -1;
+  }
+
+  function isInternalPage(href) {
+    var u;
+    try { u = new URL(href, MUSIC_BASE); } catch (e) { return false; }
+    if (u.origin !== location.origin) return false;
+    var path = u.pathname.toLowerCase();
+    if (path === '/' || path.endsWith('/index.html')) return true;
+    return /\.html$/.test(path);
+  }
+
+  // 特殊页面（星环游戏 / 神秘彩蛋页）：用全屏 iframe 承载，不注入其 DOM
+  function isSpecialPage(url) {
+    var u;
+    try { u = new URL(url); } catch (e) { return false; }
+    var path = u.pathname.toLowerCase();
+    return path.indexOf('/games/') !== -1 || path.endsWith('/shenmi.html');
+  }
+
+  function updateNavActive(url) {
+    var target = url.split('/').pop() || 'index.html';
+    var links = document.querySelectorAll('.site-nav a');
+    links.forEach(function (link) {
+      var href = link.getAttribute('href');
+      if (!href) return;
+      link.classList.toggle('active', href.split('/').pop() === target);
+    });
+  }
+
+  function runPageScript(url) {
+    var name = url.split('/').pop().split('?')[0];
+    var script = PAGE_SCRIPTS[name];
+    if (!script) return;
+    fetch(script).then(function (r) { return r.text(); }).then(function (code) {
+      var s = document.createElement('script');
+      s.textContent = code;
+      document.head.appendChild(s);
+      s.remove();
+    }).catch(function () {});
+  }
+
+  function restoreMusicView() {
+    specialFrame.hidden = true;
+    var currentMain = document.querySelector('main');
+    if (savedMusicMain && currentMain !== savedMusicMain) {
+      currentMain.replaceWith(savedMusicMain);
+    }
+    isMusicView = true;
+    document.title = MUSIC_TITLE;
+    syncMini();
+  }
+
+  function applyPage(html, url) {
+    var doc = new DOMParser().parseFromString(html, 'text/html');
+    var currentMain = document.querySelector('main');
+
+    if (isMusicUrl(url)) {
+      restoreMusicView();
+      return;
+    }
+
+    if (!savedMusicMain) savedMusicMain = currentMain;  // 首次离开，保存音乐页 main
+    var newMain = doc.querySelector('main');
+    if (newMain) {
+      var target = (currentMain === savedMusicMain) ? savedMusicMain : currentMain;
+      target.replaceWith(newMain);
+    }
+    isMusicView = false;
+    document.title = doc.title;
+    runPageScript(url);
+    syncMini();
+  }
+
+  function navigateTo(url, addHistory) {
+    // 特殊页面（游戏 / 彩蛋页）：用全屏 iframe 承载，游戏在独立文档中运行
+    if (isSpecialPage(url)) {
+      specialFrame.src = url;
+      specialFrame.hidden = false;
+      isMusicView = false;
+      syncMini();
+      if (addHistory !== false) history.pushState({ url: url }, '', url);
+      return;
+    }
+
+    // 离开特殊页面，隐藏 iframe
+    specialFrame.hidden = true;
+
+    // 音乐页：直接恢复保存的音乐页视图
+    if (isMusicUrl(url)) {
+      restoreMusicView();
+      if (addHistory !== false) history.pushState({ url: url }, '', url);
+      updateNavActive(url);
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    fetch(url).then(function (resp) {
+      if (!resp.ok) throw new Error('load failed');
+      return resp.text();
+    }).then(function (html) {
+      applyPage(html, url);
+      if (addHistory !== false) history.pushState({ url: url }, '', url);
+      updateNavActive(url);
+      window.scrollTo(0, 0);
+    }).catch(function () {
+      location.href = url;  // 加载失败兜底整页跳转
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented) return;
+    var a = e.target && e.target.closest ? e.target.closest('a') : null;
+    if (!a) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (a.hasAttribute('download')) return;
+    var href = a.getAttribute('href');
+    if (!href) return;
+    if (!isInternalPage(href)) return;
+    var url = new URL(href, MUSIC_BASE).href;
+    if (url === location.href) return;
+    e.preventDefault();
+    navigateTo(url);
+  });
+
+  window.addEventListener('popstate', function () {
+    navigateTo(location.href, false);
+  });
+
+  syncMini();
 
   setupMediaSession();
   stopSpectrum();  // 初始化可视化柱到静止态（正确角度）

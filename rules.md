@@ -10,15 +10,12 @@
 7. 认真对待本文件，每轮对话结束后查验 importance 栏并整理
 
 结构：
-	index.html			主界面（顶部 5 项导航 + 底部灰色小字 "power by trae"）
-	css/style.css		全站极简样式（统一变量，含日/夜间主题、卡片、音乐播放器、网速测试、聊天）
+	index.html			主界面（顶部 4 项导航 + 底部灰色小字 "power by trae"）
+	css/style.css		全站极简样式（统一变量，含日/夜间主题、卡片、音乐播放器、网速测试）
 	js/main.js			导航高亮 + 日/夜间模式切换（右下角按钮，交叉淡入淡出）
-	js/music.js			音乐播放器逻辑（在线搜索多音源 + 播放控制 + 手动添加音源 + 每首歌下载按钮 + 更多菜单/音质/空间音效/多声道/单曲循环 + 音频可视化 + 声道标签 + 播放源解析）
+	js/music.js			音乐播放器逻辑（在线搜索多音源 + 播放控制 + 手动添加音源 + 每首歌下载按钮 + 更多菜单/音质/空间音效/多声道/单曲循环 + 音频可视化 + 声道标签 + 播放源解析 + 站内软导航/迷你卡片/特殊页面 iframe 承载）
 	js/speedtest.js		网速测试逻辑（延迟 + 下载速度）
-	js/chat.js			与 DeepSeek 聊天前端逻辑（调本地 /api/chat，流式输出 + 人机验证）
-	server/proxy.py		本地代理服务器（静态文件服务 + /api/chat 中转 DeepSeek + /api/music/download 下载代理 + /api/music/info 音频信息解析 + /api/music/resolve 播放源解析，含人机验证与全局每日 token 配额）
-	server/key.txt		DeepSeek API Key（仅服务端，禁止泄露/提交到 git）
-	server/usage.json	服务端每日 token 用量持久化（重启不丢失）
+	server/proxy.py		本地代理服务器（静态文件服务 + /api/music/download 下载代理 + /api/music/info 音频信息解析 + /api/music/resolve 播放源解析）
 	games/starring/		星环·天穹 星际即时策略游戏（BETA）
 	downloads/FileSearch.exe	文件查找工具（Windows 文件查找，卡片下载）
 	speedtest/100mb.bin	网速测试下载文件（100MB）
@@ -26,22 +23,20 @@
 	pages/music.html		音乐播放器（搜索 + 音源选择 + 正在播放 + 手动添加音源 + 更多菜单）
 	pages/shenmi.html		非常神秘的项目（ysnb）
 	pages/speedtest.html	网速测试（延迟 + 下载速度）
-	pages/chat.html		与 DeepSeek 聊天（多轮对话）
 	pages/about.html		小站介绍（已完善内容）
 
 importance：
 	【站点基础】
 	- 站名：泠风吹梦的小站
-	- 导航 5 项：首页 / 开发的小玩意 / 网速测试 / 与deepseek聊天 / 小站介绍
+	- 导航 4 项：首页 / 开发的小玩意 / 网速测试 / 小站介绍
 	- 首页底部灰色小字 "power by trae"
 	- 文件与文件夹命名禁止中文（主文件夹 lingsite）
 	- 日/夜间模式：右下角按钮切换，localStorage 持久化，缺省跟随系统，交叉淡入淡出
 
 	【功能模块】
-	- 5 项入口全部落实
+	- 4 项入口全部落实
 	- 开发的小玩意：星环 BETA（games/starring）、音乐播放器、文件查找工具（downloads/FileSearch.exe）、非常神秘的项目（pages/shenmi.html）
 	- 网速测试：延迟 + 下载速度，依赖 speedtest/100mb.bin，需 HTTP 访问
-	- DeepSeek 聊天：前端调 /api/chat 流式输出，Key 存 server/key.txt（仅服务端，禁止泄露）
 
 	【音乐播放器】
 	- 结构：pages/music.html + js/music.js
@@ -56,10 +51,6 @@ importance：
 	- 音频可视化：页面右侧面板，在线真实频谱（AnalyserNode）/ 本地装饰动画
 	- 声道标签：播放列表按声道数打标签（多声道>2 / 双声道=2 / 单声道不标）
 	- 播放源框架：后端 /api/music/resolve 代理公益/聚合源，前端「播放源」下拉；多数第三方接口失效，仅收集聚合-QQ 可用，待恢复
-
-	【安全与配额】
-	- 人机验证：算术题，答对发放一次性会话 token（防刷 token）
-	- 每日 token 配额：2000（全局共享，每天重置，持久化 usage.json），耗尽提示"服务端token已耗尽，请明天再来吧"
 
 	【关键技术决策】
 	- Web Audio：audio 须 crossOrigin='anonymous'（否则跨域音频被 createMediaElementSource 输出静音）；默认原生播放，仅开启空间音效/多声道时创建 Web Audio 图（先 resume 再接管）

@@ -23,7 +23,6 @@
       <a href="../index.html">首页</a>
       <a href="tools.html">开发的小玩意</a>
       <a href="speedtest.html">网速测试</a>
-      <a href="chat.html">与deepseek聊天</a>
       <a href="about.html">小站介绍</a>
     </nav>
   </header>
@@ -56,9 +55,14 @@
           <div class="np-title" id="np-title">未在播放</div>
           <div class="np-artist" id="np-artist">从下方列表选择或搜索歌曲</div>
         </div>
-        <button id="btn-more" class="more-btn" type="button" aria-label="更多" aria-expanded="false">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
-        </button>
+        <div class="np-actions">
+          <button id="btn-more" class="more-btn" type="button" aria-label="更多" aria-expanded="false">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+          </button>
+          <button id="btn-history" class="more-btn history-btn" type="button" aria-label="播放历史" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+          </button>
+        </div>
         <div class="more-menu" id="more-menu" hidden>
           <div class="more-section">
             <div class="more-label">音质选择</div>
