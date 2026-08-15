@@ -1,0 +1,212 @@
+/**
+ * 星际战略 - 全局样式
+ * 简约科技风，深色主题
+ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #0a0e17;
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+
+#game-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+}
+
+#game-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: auto;
+}
+
+/* ========== 设备模式选择面板 ========== */
+#device-select-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: radial-gradient(ellipse at center, #0f172a 0%, #020617 100%);
+    z-index: 99998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.6s ease-out;
+    pointer-events: none;
+}
+
+#device-select-screen.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.device-select-container {
+    text-align: center;
+    max-width: 800px;
+    padding: 40px;
+}
+
+.device-select-title {
+    font-family: 'Orbitron', 'Segoe UI', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #e2e8f0;
+    letter-spacing: 4px;
+    margin-bottom: 12px;
+    text-shadow: 0 0 20px rgba(96, 165, 250, 0.5);
+}
+
+.device-select-subtitle {
+    font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+    font-size: 14px;
+    color: #64748b;
+    letter-spacing: 2px;
+    margin-bottom: 48px;
+}
+
+.device-select-cards {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.device-card {
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    border-radius: 12px;
+    padding: 32px 28px;
+    width: 200px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.device-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.5), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.device-card:hover {
+    border-color: rgba(96, 165, 250, 0.5);
+    background: rgba(30, 41, 59, 0.8);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.device-card.selected {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.15);
+    box-shadow: 0 0 30px rgba(59, 130, 246, 0.15), inset 0 0 30px rgba(59, 130, 246, 0.05);
+}
+
+.device-card.selected::before {
+    opacity: 1;
+}
+
+.device-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    line-height: 1;
+}
+
+.device-icon-canvas {
+    display: block;
+    width: 48px;
+    height: 48px;
+}
+
+.device-name {
+    font-family: 'Orbitron', 'Segoe UI', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e2e8f0;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+}
+
+.device-desc {
+    font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.6;
+    letter-spacing: 0.5px;
+}
+
+.device-confirm-btn {
+    margin-top: 40px;
+    padding: 14px 48px;
+    font-family: 'Orbitron', 'Segoe UI', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e2e8f0;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    letter-spacing: 3px;
+    transition: all 0.3s ease;
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.device-confirm-btn:not([disabled]) {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.device-confirm-btn:not([disabled]):hover {
+    background: linear-gradient(135deg, #60a5fa, #3b82f6);
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+    transform: translateY(-2px);
+}
+
+/* 手机模式适配：面板响应式 */
+@media (max-width: 768px) {
+    .device-select-container {
+        padding: 20px;
+    }
+    .device-select-title {
+        font-size: 22px;
+    }
+    .device-select-cards {
+        gap: 16px;
+    }
+    .device-card {
+        width: 160px;
+        padding: 24px 20px;
+    }
+    .device-icon {
+        font-size: 36px;
+    }
+}
+
+@media (max-width: 480px) {
+    .device-select-cards {
+        flex-direction: column;
+        align-items: center;
+    }
+    .device-card {
+        width: 240px;
+    }
+}

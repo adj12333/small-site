@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>炮火打击动画</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #1a1a2e;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            gap: 60px;
+        }
+        .animation-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+        .animation-label {
+            color: #e0e0e0;
+            font-size: 18px;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+        canvas {
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="animation-container">
+        <div class="animation-label">警告圈脉冲</div>
+        <div id="warning-canvas"></div>
+    </div>
+    <div class="animation-container">
+        <div class="animation-label">爆炸扩散</div>
+        <div id="explosion-canvas"></div>
+    </div>
+
+    <script>
+        const warningSketch = (p) => {
+            const radius = 50;
+            const dashLength = 8;
+            const gapLength = 6;
+            let startTime;
+            const countdownDuration = 3.0;
+
+            p.setup = () => {
+                p.createCanvas(200, 200);
+                startTime = p.millis();
+            };
+
+            p.draw = () => {
+                p.background(30, 30, 50);
+                
+                const elapsed = (p.millis() - startTime) / 1000;
+                const countdown = countdownDuration - (elapsed % countdownDuration);
+                
+                const pulseAlpha = p.map(p.sin(p.millis() * 0.005), -1, 1, 0.4, 1.0);
+                
+                p.push();
+                p.translate(p.width / 2, p.height / 2);
+                
+                p.stroke(255, 60, 60, pulseAlpha * 255);
+                p.strokeWeight(3);
+                p.noFill();
+                
+                drawDashedCircle(p, 0, 0, radius, dashLength, gapLength);
+                
+                p.noStroke();
+                p.fill(255, 255, 255, pulseAlpha * 255);
+                p.textAlign(p.CENTER, p.CENTER);
+                p.textSize(28);
+                p.text(countdown.toFixed(1), 0, 0);
+                
+                p.pop();
+            };
+
+            function drawDashedCircle(p, x, y, r, dashLen, gapLen) {
+                const circumference = 2 * p.PI * r;
+                const totalSegment = dashLen + gapLen;
+                const numSegments = p.floor(circumference / totalSegment);
+                const anglePerSegment = (2 * p.PI) / numSegments;
+                
+                for (let i = 0; i < numSegments; i++) {
+                    const startAngle = i * anglePerSegment;
+                    const endAngle = startAngle + (dashLen / totalSegment) * anglePerSegment;
+                    p.arc(x, y, r * 2, r * 2, startAngle, endAngle);
+                }
+            }
+        };
+
+        const explosionSketch = (p) => {
+            const initialRadius = 25;
+            const maxRadius = 90;
+            const cycleDuration = 1500;
+            let cycleStartTime;
+
+            p.setup = () => {
+                p.createCanvas(200, 200);
+                cycleStartTime = p.millis();
+            };
+
+            p.draw = () => {
+                p.background(30, 30, 50);
+                
+                const elapsed = p.millis() - cycleStartTime;
+                
+                if (elapsed >= cycleDuration) {
+                    cycleStartTime = p.millis();
+                }
+                
+                const progress = elapsed / cycleDuration;
+                const currentRadius = p.lerp(initialRadius, maxRadius, progress);
+                const alpha = p.lerp(255, 0, progress);
+                
+                p.push();
+                p.translate(p.width / 2, p.height / 2);
+                
+                p.noFill();
+                p.strokeWeight(4);
+                
+                p.stroke(255, 140, 0, alpha);
+                p.ellipse(0, 0, currentRadius * 2, currentRadius * 2);
+                
+                const innerRadius = currentRadius * 0.6;
+                p.strokeWeight(3);
+                p.stroke(255, 220, 50, alpha * 0.8);
+                p.ellipse(0, 0, innerRadius * 2, innerRadius * 2);
+                
+                const coreRadius = currentRadius * 0.3;
+                p.strokeWeight(2);
+                p.stroke(255, 255, 200, alpha * 0.6);
+                p.ellipse(0, 0, coreRadius * 2, coreRadius * 2);
+                
+                p.pop();
+            };
+        };
+
+        new p5(warningSketch, 'warning-canvas');
+        new p5(explosionSketch, 'explosion-canvas');
+    </script>
+</body>
+</html>

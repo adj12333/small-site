@@ -1,0 +1,106 @@
+# 泠风吹梦的小站 · 项目状态
+
+> 本文档汇总项目的开发重点、目标、进度与重要上下文，随开发推进持续更新。
+
+## 一、项目简介
+
+开发一个极简风格的个人小站「泠风吹梦的小站」，用于汇集自用的小工具。
+后期将利用内网穿透或现有域名，将站点对互联网开放。
+
+## 二、目标
+
+- 打造结构清晰、极简风格的个人小站。
+- 逐步落实各入口（开发的小玩意 / 网速测试 / 与deepseek聊天 / 小站介绍）的具体功能。
+- 最终通过内网穿透或已有域名对外开放访问。
+
+## 三、开发重点（约束与规则）
+
+1. 项目结构清晰简洁，避免屎山代码。
+2. 模块化并联设计，单模块故障不影响整体。
+3. 文件与文件夹命名规范，禁止特殊字符，禁止中文。
+4. 极简风格设计，避免花里胡哨的 AI 审美。
+5. 每轮任务完成后批判性核查代码，不自我满足。
+6. 每轮对话后将重点、重要需求记录到 rules.md 的 importance 栏。
+
+## 四、进度
+
+### 已完成
+
+- [x] 站名确定：泠风吹梦的小站。
+- [x] index.html 主界面：顶部导航（5 项）+ 底部灰色小字 `power by trae`。
+- [x] 小站介绍：完善页面内容（含制作与来源信息）。
+- [x] 开发的小玩意：新增「星环」星际即时策略游戏卡片（BETA 标签），游戏目录移至 games/starring。
+- [x] 开发的小玩意：新增「音乐播放器」（在线搜索 + 正在播放 + 播放控制 + 手动添加音源），页面 pages/music.html，逻辑 js/music.js。
+- [x] 开发的小玩意：新增「文件查找工具」卡片（点击下载 FileSearch.exe），文件移至 downloads/。
+- [x] 开发的小玩意：新增「非常神秘的项目」卡片（ysnb），页面移至 pages/shenmi.html。
+- [x] 网速测试：实现延迟 + 下载速度测试（到本站），页面 pages/speedtest.html，逻辑 js/speedtest.js，测速文件 speedtest/100mb.bin。
+- [x] 与 DeepSeek 聊天：实现多轮对话（流式输出），页面 pages/chat.html，逻辑 js/chat.js，后端代理 server/proxy.py（Key 存 server/key.txt）。含人机验证（算术题）与全局每日 2000 token 配额限制。
+- [x] 全站极简样式 css/style.css（统一变量，含日/夜间主题、卡片、播放器、网速测试、聊天）。
+- [x] 导航高亮 + 日/夜间模式切换（右下角按钮，交叉淡入淡出）js/main.js。
+- [x] rules.md 同步「结构」栏并整理 importance。
+- [x] 主文件夹重命名：d:\项目 → d:\lingsite（英文规范名）。
+- [x] 右下角日/夜间模式切换按钮：主题切换并持久化 localStorage，缺省跟随系统 prefers-color-scheme，切换时交叉淡入淡出（旧主题渐隐、新主题渐显）。
+- [x] 音乐播放器增强：列表每首歌旁新增下载按钮（后端 /api/music/download 代理下载 mp3，规避跨域并统一文件名）；新增音源下拉（网易云 / QQ音乐 / 酷狗，Meting server 参数）。
+- [x] 音乐播放器交互优化：正在播放的歌曲（本地 / 在线）在列表中框选（边框）并慢速低幅度闪烁（playing-pulse，3s 周期）；修正播放在线歌曲时的播放/暂停按钮状态。
+- [x] 音乐播放器音频质量增强：新增「更多」按钮（三横线，日夜间适配）弹出面板，含音质选择（后端 /api/music/info 解析 MP3/FLAC 头显示采样率/比特率，按 br 档位探测去重切换）、空间音效开关（左右声道中低烈度摆动）、多声道音频开关（声道数 >2 亮起，否则淡灰；关闭时合并单声道）。
+- [x] 修复音乐播放器无声音/时长 0:00：移除播放时默认创建 Web Audio（AudioContext suspended 会导致静音，改为空间音效/多声道开启时才创建）；tencent/kugou 音源 url 接口当前 404（Meting 侧失效），播放失败时显示「加载失败：该音源不可用」提示。
+- [x] 修复空间音效开启后无声音：根因是 createMediaElementSource 对跨域且未以 CORS 模式加载的音频输出静音，修复为 audio 元素设置 crossOrigin='anonymous'（网易云 mp3 响应含 Access-Control-Allow-Origin:*），并确保 AudioContext 在用户手势内 resume 成功后再接管音频；音源下拉保留网易云/QQ音乐/酷狗（不可用音源播放时提示）。
+- [x] 音质选择菜单优化：当前音质用黑/白色（var(--color-text)，日间黑/夜间白）边框框选，修复在线歌曲 active 判断失效（改用采样率/比特率/声道对比，替代 url 对比）。
+- [x] 修正多声道音频开关语义：声道数 >=2 时开关亮起（默认开启），开=双声道及更高，关=合并单声道（此前误理解为仅 >2 声道才亮起）。
+- [x] 修复多声道开关偶发灰色：合并 updateCurrentQuality / updateMultichannelState 为单次 refreshAudioInfo 请求（消除并发 fetch 竞争导致失败置灰），switchQuality 直接用已知音质信息不再额外请求。
+- [x] 落实上一首/下一首按钮：按当前列表（搜索模式→在线结果，否则→本地歌曲）切换上一首/下一首；列表仅一首时不做任何操作。
+- [x] 「更多」菜单新增单曲循环开关（图标+文字，开启时歌曲结束后从头重新播放，关闭时切下一首）。
+- [x] 音乐播放器支持后台播放：注册 Media Session（锁屏/通知栏播放控制与歌曲信息）+ audio 增加 playsinline + 切回前台自动恢复被浏览器挂起的 AudioContext（修复手机切后台/锁屏后音乐停止）。
+- [x] 音频可视化：页面右侧独立面板（顶部与播放器卡片对齐），在线音源走真实频谱（Web Audio AnalyserNode 驱动 10 根柱），本地音源走装饰动画；播放列表按声道打标签（多声道 >2 / 双声道 =2 / 单声道不标）。
+- [x] 公益/聚合音源接入框架：后端 /api/music/resolve 代理（收集聚合/新澜/聆川/聚合API/星海 五种播放源，规避跨域），前端新增「播放源」下拉（搜索仍用 Meting，播放可走新源，失败自动回退）；实测多数第三方接口已失效/维护中，仅「收集聚合-QQ(cyapi.top)」可用，框架待恢复。
+
+### 待办
+
+- [ ] 开发的小玩意 —— 补充更多小玩意。
+- [ ] 内网穿透 / 域名接入对外开放。
+
+## 五、重要上下文
+
+- 站名：泠风吹梦的小站。
+- 导航共 5 项：首页、开发的小玩意、网速测试、与deepseek聊天、小站介绍。
+- 5 项入口均已落实。
+- 技术栈：前端纯静态 HTML / CSS / JS；后端为 Python 代理 server/proxy.py（仅静态文件服务 + DeepSeek 中转，无第三方依赖）。
+- 项目根目录：d:\lingsite。
+- 主文件夹命名禁止中文，已由「项目」重命名为 lingsite。
+- 日/夜间模式：右下角按钮切换，主题存 localStorage，首次访问跟随系统偏好，切换时交叉淡入淡出（旧主题渐隐、新主题渐显）。
+- 音乐播放器音源：在线搜索走 Meting 公开 API（支持跨域），音源下拉可选网易云（netease）/ QQ音乐（tencent）/ 酷狗（kugou）；手动添加 mp3 直链持久化到 localStorage。列表每首歌旁有下载按钮，走后端 /api/music/download 代理下载 mp3。
+- 网速测试：需通过 HTTP 方式访问（file:// 下 fetch 会被浏览器拦截）。
+- 与 DeepSeek 聊天：API Key 存 server/key.txt（仅服务端，禁止泄露/提交到 git）；前端只调 /api/chat，由 proxy.py 转发。含人机验证（算术题）与全局每日 2000 token 配额（服务端总量，所有用户共享，耗尽提示「服务端token已耗尽，请明天再来吧」）。
+
+## 六、目录结构
+
+```
+d:\lingsite
+├─ index.html            主界面（5 项导航 + power by trae）
+├─ rules.md              项目规则与结构、importance
+├─ project-status.md     本文件（项目状态汇总）
+├─ css\
+│  └─ style.css          全站极简样式（含日/夜间主题、卡片、播放器、网速测试、聊天）
+├─ js\
+│  ├─ main.js            导航高亮 + 日/夜间切换
+│  ├─ music.js           音乐播放器逻辑
+│  ├─ speedtest.js       网速测试逻辑
+│  └─ chat.js            与 DeepSeek 聊天逻辑
+├─ server\
+│  ├─ proxy.py           本地代理（静态服务 + /api/chat 中转 + /api/music/download 下载代理 + /api/music/info 音频信息 + /api/music/resolve 播放源解析）
+│  ├─ key.txt            DeepSeek API Key（仅服务端）
+│  └─ usage.json         每日 token 用量持久化（重启不丢失）
+├─ games\
+│  └─ starring\          星环·天穹 星际即时策略游戏（BETA）
+├─ downloads\
+│  └─ FileSearch.exe      文件查找工具（下载）
+├─ speedtest\
+│  └─ 100mb.bin          网速测试下载文件（100MB）
+└─ pages\
+   ├─ tools.html         开发的小玩意（卡片）
+   ├─ music.html         音乐播放器（搜索/手动添加音源）
+   ├─ speedtest.html     网速测试（延迟/下载）
+   ├─ chat.html          与 DeepSeek 聊天
+   ├─ shenmi.html        非常神秘的项目（ysnb）
+   └─ about.html         小站介绍（已完善）
+```

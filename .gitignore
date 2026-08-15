@@ -1,0 +1,3 @@
+# 敏感文件（禁止提交到远程）
+server/key.txt
+server/usage.json

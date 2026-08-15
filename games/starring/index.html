@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星环·天穹 - 即时策略游戏</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="css/account.css">
+    <link rel="stylesheet" href="css/mail.css">
+    <link rel="stylesheet" href="css/battle-report.css">
+    <link rel="stylesheet" href="css/loading.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet"></noscript>
+</head>
+<body>
+    <!-- 加载画面 -->
+    <div id="loading-screen">
+        <!-- 背景星空 -->
+        <div class="loading-stars" id="loading-stars"></div>
+        <!-- 星云 -->
+        <div class="loading-nebula">
+            <div class="nebula-ring"></div>
+            <div class="nebula-ring"></div>
+            <div class="nebula-ring"></div>
+        </div>
+        <!-- 扫描线 -->
+        <div class="scan-line"></div>
+        <!-- 角落装饰 -->
+        <div class="corner-decoration top-left"></div>
+        <div class="corner-decoration top-right"></div>
+        <div class="corner-decoration bottom-left"></div>
+        <div class="corner-decoration bottom-right"></div>
+        <!-- 主星环动画 -->
+        <div class="star-ring-container">
+            <div class="center-planet"></div>
+            <div class="orbit-ring">
+                <div class="orbit-dot"></div>
+            </div>
+            <div class="orbit-ring">
+                <div class="orbit-dot"></div>
+            </div>
+            <div class="orbit-ring">
+                <div class="orbit-dot"></div>
+            </div>
+        </div>
+        <!-- 标题 -->
+        <div class="loading-title">星环·天穹</div>
+        <div class="loading-subtitle">Celestial Halo</div>
+        <!-- 进度条 -->
+        <div class="progress-container">
+            <div class="progress-bar" id="loading-progress"></div>
+        </div>
+        <!-- 加载文字 -->
+        <div class="loading-text" id="loading-text">正在初始化系统</div>
+        <!-- Logo -->
+        <div class="loading-logo">
+            <div class="logo-ring"></div>
+            <div class="logo-text">made by <span>adj-星环</span></div>
+        </div>
+    </div>
+
+    <!-- 设备模式选择 -->
+    <div id="device-select-screen">
+        <div class="device-select-container">
+            <div class="device-select-title">选择操作模式</div>
+            <div class="device-select-subtitle">根据您的设备选择最佳操作方式</div>
+            <div class="device-select-cards">
+                <div class="device-card" data-mode="phone">
+                    <div class="device-icon"><canvas class="device-icon-canvas" width="48" height="48"></canvas></div>
+                    <div class="device-name">手机模式</div>
+                    <div class="device-desc">触控优化 · 底部面板<br>大按钮 · 单手操作</div>
+                </div>
+                <div class="device-card" data-mode="tablet">
+                    <div class="device-icon"><canvas class="device-icon-canvas" width="48" height="48"></canvas></div>
+                    <div class="device-name">平板模式</div>
+                    <div class="device-desc">触控+鼠标混合<br>中等界面 · 双指缩放</div>
+                </div>
+                <div class="device-card" data-mode="desktop">
+                    <div class="device-icon"><canvas class="device-icon-canvas" width="48" height="48"></canvas></div>
+                    <div class="device-name">电脑模式</div>
+                    <div class="device-desc">鼠标键盘优化<br>全快捷键 · 精准操作</div>
+                </div>
+            </div>
+            <button id="device-confirm-btn" class="device-confirm-btn" disabled>确认选择</button>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <!-- 加载画面 -->
+    <script src="src/LoadingScreen.js"></script>
+    <!-- 游戏核心模块 -->
+    <script src="src/H265Crypto.js"></script>
+    <script src="src/ThemeEngine.js"></script>
+    <script src="src/IconRenderer.js"></script>
+    <script src="src/MusicManager.js"></script>
+    <script src="src/ResourceManager.js"></script>
+    <script src="src/InputSystem.js"></script>
+    <script src="src/MenuSystem.js"></script>
+    <script src="src/MailSystem.js"></script>
+    <script src="src/ProximaCoinRenderer.js"></script>
+    <script src="src/HUDSystem.js"></script>
+    <script src="src/SelectionRenderer.js"></script>
+    <script src="src/GameCore.js?v=2"></script>
+    <script src="src/NetworkManager.js"></script>
+    <script src="src/ServerGameClient.js"></script>
+    <script src="src/UIManager.js?v=2"></script>
+    <script src="src/main.js"></script>
+</body>
+</html>

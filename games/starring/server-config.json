@@ -1,0 +1,5 @@
+{
+  "accountServer": "https://companies-hypothetical-assembly-rca.trycloudflare.com",
+  "signalingServer": "https://companies-hypothetical-assembly-rca.trycloudflare.com",
+  "signalingPort": "443"
+}

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>游戏动画资源参考</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 24px;
+      color: #ffffff;
+      letter-spacing: 2px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #12121a;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .cell h2 {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 12px;
+      color: #aaaacc;
+      text-align: center;
+    }
+    canvas { display: block; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>游戏动画资源参考</h1>
+  <div class="grid">
+    <div class="cell">
+      <h2>1. 前哨站中心白色正方形脉冲发光</h2>
+      <div id="anim1"></div>
+    </div>
+    <div class="cell">
+      <h2>2. 前哨站区域边框呼吸明暗</h2>
+      <div id="anim2"></div>
+    </div>
+    <div class="cell">
+      <h2>3. 前哨站封锁状态锯齿旋转</h2>
+      <div id="anim3"></div>
+    </div>
+    <div class="cell">
+      <h2>4. 工程船采集状态脉冲光环</h2>
+      <div id="anim4"></div>
+    </div>
+  </div>
+
+  <script>
+  var anim1 = function(p) {
+    p.setup = function() {
+      p.createCanvas(300, 300);
+    };
+    p.draw = function() {
+      p.background(10, 10, 15);
+      p.translate(p.width / 2, p.height / 2);
+
+      var t = p.millis() / 1000;
+      var glowIntensity = (p.sin(t * p.PI) + 1) / 2;
+
+      for (var i = 4; i >= 0; i--) {
+        var layerAlpha = glowIntensity * p.map(i, 0, 4, 200, 15);
+        var layerSize = 40 + i * 20 * glowIntensity;
+        p.noStroke();
+        p.fill(255, 255, 255, layerAlpha);
+        p.rectMode(p.CENTER);
+        p.rect(0, 0, layerSize, layerSize, i > 0 ? 4 : 0);
+      }
+
+      p.drawingContext.shadowBlur = 30 * glowIntensity;
+      p.drawingContext.shadowColor = 'rgba(255,255,255,' + (0.8 * glowIntensity) + ')';
+      p.fill(255, 255, 255, 180 + 75 * glowIntensity);
+      p.rectMode(p.CENTER);
+      p.rect(0, 0, 40, 40);
+      p.drawingContext.shadowBlur = 0;
+    };
+  };
+
+  var anim2 = function(p) {
+    p.setup = function() {
+      p.createCanvas(300, 300);
+    };
+    p.draw = function() {
+      p.background(10, 10, 15);
+      p.translate(p.width / 2, p.height / 2);
+
+      var t = p.millis() / 1000;
+      var breathAlpha = p.map(p.sin(t * p.TWO_PI / 3), -1, 1, 0.3, 0.8);
+
+      p.noFill();
+      p.rectMode(p.CENTER);
+
+      for (var i = 3; i >= 0; i--) {
+        var expand = i * 4;
+        var a = breathAlpha * p.map(i, 0, 3, 255, 40);
+        p.stroke(255, 255, 255, a);
+        p.strokeWeight(i === 0 ? 2 : 1);
+        p.rect(0, 0, 200 + expand, 200 + expand);
+      }
+
+      p.stroke(255, 255, 255, breathAlpha * 255);
+      p.strokeWeight(2);
+      p.rect(0, 0, 200, 200);
+    };
+  };
+
+  var anim3 = function(p) {
+    var teeth = 8;
+    var innerR = 55;
+    var outerR = 80;
+    var angle = 0;
+
+    p.setup = function() {
+      p.createCanvas(300, 300);
+    };
+    p.draw = function() {
+      p.background(10, 10, 15);
+      p.translate(p.width / 2, p.height / 2);
+
+      angle += 0.012;
+
+      p.noFill();
+      p.stroke(60, 120, 255, 80);
+      p.strokeWeight(1.5);
+      p.rectMode(p.CENTER);
+      p.rect(0, 0, 100, 100);
+
+      p.push();
+      p.rotate(angle);
+
+      p.beginShape();
+      for (var i = 0; i < teeth; i++) {
+        var baseAngle = (p.TWO_PI / teeth) * i;
+        var halfStep = p.TWO_PI / teeth / 2;
+
+        var ax = p.cos(baseAngle) * innerR;
+        var ay = p.sin(baseAngle) * innerR;
+        p.vertex(ax, ay);
+
+        var bx = p.cos(baseAngle + halfStep * 0.4) * outerR;
+        var by = p.sin(baseAngle + halfStep * 0.4) * outerR;
+        p.vertex(bx, by);
+
+        var cx = p.cos(baseAngle + halfStep * 0.6) * outerR;
+        var cy = p.sin(baseAngle + halfStep * 0.6) * outerR;
+        p.vertex(cx, cy);
+
+        var dx = p.cos(baseAngle + halfStep) * innerR;
+        var dy = p.sin(baseAngle + halfStep) * innerR;
+        p.vertex(dx, dy);
+      }
+      p.endShape(p.CLOSE);
+
+      p.pop();
+    };
+  };
+
+  var anim4 = function(p) {
+    p.setup = function() {
+      p.createCanvas(300, 300);
+    };
+    p.draw = function() {
+      p.background(10, 10, 15);
+      p.translate(p.width / 2, p.height / 2);
+
+      var t = p.millis() / 1000;
+      var pulse = (p.sin(t * p.TWO_PI) + 1) / 2;
+
+      for (var i = 3; i >= 0; i--) {
+        var ringR = 15 + (15 + i * 8) * pulse;
+        var ringAlpha = p.map(i, 0, 3, 180, 30) * (1 - pulse * 0.4);
+        p.noFill();
+        p.stroke(251, 191, 36, ringAlpha);
+        p.strokeWeight(p.map(i, 0, 3, 2.5, 1));
+        p.ellipse(0, 0, ringR * 2, ringR * 2);
+      }
+
+      p.drawingContext.shadowBlur = 15 * pulse;
+      p.drawingContext.shadowColor = 'rgba(251,191,36,' + (0.6 * pulse) + ')';
+      p.noStroke();
+      p.fill(251, 191, 36, 200 + 55 * pulse);
+      p.ellipse(0, 0, 30, 30);
+      p.drawingContext.shadowBlur = 0;
+    };
+  };
+
+  new p5(anim1, 'anim1');
+  new p5(anim2, 'anim2');
+  new p5(anim3, 'anim3');
+  new p5(anim4, 'anim4');
+  </script>
+</body>
+</html>

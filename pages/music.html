@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <title>音乐播放器 · 泠风吹梦的小站</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">泠风吹梦的小站</a>
+    <nav class="site-nav">
+      <a href="../index.html">首页</a>
+      <a href="tools.html">开发的小玩意</a>
+      <a href="speedtest.html">网速测试</a>
+      <a href="chat.html">与deepseek聊天</a>
+      <a href="about.html">小站介绍</a>
+    </nav>
+  </header>
+
+  <main class="site-main music-main">
+    <h1>音乐播放器</h1>
+
+    <div class="music-layout">
+    <div class="player">
+      <div class="player-search">
+        <input type="search" id="music-search" placeholder="搜索歌曲 / 歌手（在线音源）" autocomplete="off">
+        <select id="music-source" aria-label="选择音源">
+          <option value="netease">网易云</option>
+          <option value="tencent">QQ音乐</option>
+          <option value="kugou">酷狗</option>
+        </select>
+        <select id="music-resolve-source" aria-label="选择播放源">
+          <option value="">播放源：默认</option>
+          <option value="collect">播放源：收集聚合</option>
+          <option value="xuanlan">播放源：新澜公益</option>
+          <option value="lingchuan">播放源：聆川公益</option>
+          <option value="lerd">播放源：聚合API</option>
+          <option value="xinghai">播放源：星海</option>
+        </select>
+      </div>
+
+      <div class="now-playing">
+        <div class="np-cover" aria-hidden="true">♪</div>
+        <div class="np-info">
+          <div class="np-title" id="np-title">未在播放</div>
+          <div class="np-artist" id="np-artist">从下方列表选择或搜索歌曲</div>
+        </div>
+        <button id="btn-more" class="more-btn" type="button" aria-label="更多" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+        </button>
+        <div class="more-menu" id="more-menu" hidden>
+          <div class="more-section">
+            <div class="more-label">音质选择</div>
+            <div class="quality-list" id="quality-list"></div>
+          </div>
+          <div class="more-section">
+            <label class="more-toggle">
+              <span class="more-toggle-text">空间音效</span>
+              <input type="checkbox" id="spatial-toggle">
+              <span class="toggle-track" aria-hidden="true"></span>
+            </label>
+          </div>
+          <div class="more-section">
+            <label class="more-toggle">
+              <span class="more-toggle-text">多声道音频</span>
+              <input type="checkbox" id="multichannel-toggle" checked>
+              <span class="toggle-track" aria-hidden="true"></span>
+            </label>
+          </div>
+          <div class="more-section">
+            <label class="more-toggle">
+              <span class="more-toggle-text">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"></path><path d="M3 11v-1a4 4 0 014-4h14"></path><path d="M7 22l-4-4 4-4"></path><path d="M21 13v1a4 4 0 01-4 4H3"></path></svg>
+                单曲循环
+              </span>
+              <input type="checkbox" id="loop-toggle">
+              <span class="toggle-track" aria-hidden="true"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="player-controls">
+        <button id="btn-prev" class="ctrl-btn" type="button" aria-label="上一首">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        </button>
+        <button id="btn-play" class="ctrl-btn ctrl-btn-main" type="button" aria-label="播放">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button id="btn-next" class="ctrl-btn" type="button" aria-label="下一首">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+        </button>
+      </div>
+
+      <div class="player-progress">
+        <span class="time" id="cur-time">0:00</span>
+        <input type="range" id="seek-bar" min="0" max="100" value="0" step="0.1">
+        <span class="time" id="dur-time">0:00</span>
+      </div>
+
+      <ul class="playlist" id="playlist"></ul>
+
+      <details class="add-song">
+        <summary>添加歌曲</summary>
+        <form id="add-song-form" class="add-song-form">
+          <input type="text" id="song-title" placeholder="歌名" required>
+          <input type="text" id="song-artist" placeholder="歌手（可选）">
+          <input type="url" id="song-url" placeholder="mp3 直链，如 https://.../xx.mp3" required>
+          <button type="submit" class="add-song-btn">添加</button>
+        </form>
+      </details>
+    </div>
+
+    <div class="visualizer" id="visualizer" aria-hidden="true"></div>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+  <script src="../js/music.js"></script>
+</body>
+</html>

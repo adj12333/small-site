@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <title>泠风吹梦的小站</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="index.html">泠风吹梦的小站</a>
+    <nav class="site-nav">
+      <a href="index.html">首页</a>
+      <a href="pages/tools.html">开发的小玩意</a>
+      <a href="pages/speedtest.html">网速测试</a>
+      <a href="pages/chat.html">与deepseek聊天</a>
+      <a href="pages/about.html">小站介绍</a>
+    </nav>
+  </header>
+
+  <main class="site-main">
+    <h1>泠风吹梦的小站</h1>
+    <p>一个极简的个人小站，汇集一些自用的小工具。</p>
+  </main>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

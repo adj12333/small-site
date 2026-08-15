@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <title>与 DeepSeek 聊天 · 泠风吹梦的小站</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">泠风吹梦的小站</a>
+    <nav class="site-nav">
+      <a href="../index.html">首页</a>
+      <a href="tools.html">开发的小玩意</a>
+      <a href="speedtest.html">网速测试</a>
+      <a href="chat.html">与deepseek聊天</a>
+      <a href="about.html">小站介绍</a>
+    </nav>
+  </header>
+
+  <main class="site-main">
+    <h1>与 DeepSeek 聊天</h1>
+
+    <div class="chat">
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-area">
+        <textarea class="chat-input" id="chat-input" rows="1" placeholder="输入消息，回车发送…"></textarea>
+        <button class="chat-send" id="chat-send" type="button">发送</button>
+      </div>
+    </div>
+  </main>
+
+  <div class="captcha-overlay" id="captcha-overlay">
+    <div class="captcha-box">
+      <div class="captcha-question" id="captcha-question">加载中…</div>
+      <input type="text" class="captcha-input" id="captcha-answer" inputmode="numeric" placeholder="输入答案" autocomplete="off">
+      <button class="captcha-btn" id="captcha-submit" type="button">验证</button>
+      <div class="captcha-error" id="captcha-error"></div>
+    </div>
+  </div>
+
+  <script src="../js/main.js"></script>
+  <script src="../js/chat.js"></script>
+</body>
+</html>

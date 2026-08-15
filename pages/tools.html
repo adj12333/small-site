@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <title>开发的小玩意 · 泠风吹梦的小站</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">泠风吹梦的小站</a>
+    <nav class="site-nav">
+      <a href="../index.html">首页</a>
+      <a href="tools.html">开发的小玩意</a>
+      <a href="speedtest.html">网速测试</a>
+      <a href="chat.html">与deepseek聊天</a>
+      <a href="about.html">小站介绍</a>
+    </nav>
+  </header>
+
+  <main class="site-main">
+    <h1>开发的小玩意</h1>
+    <p>这里将汇集一些自用的小玩意，功能开发中。</p>
+
+    <div class="toy-grid">
+      <a class="toy-card" href="../games/starring/index.html">
+        <span class="toy-card-header">
+          <span class="toy-card-title">星环</span>
+          <span class="tag">BETA</span>
+        </span>
+        <span class="toy-card-desc">星际即时策略游戏</span>
+      </a>
+      <a class="toy-card" href="music.html">
+        <span class="toy-card-header">
+          <span class="toy-card-title">音乐播放器</span>
+        </span>
+        <span class="toy-card-desc">搜索并播放音乐</span>
+      </a>
+      <a class="toy-card" href="../downloads/FileSearch.exe" download>
+        <span class="toy-card-header">
+          <span class="toy-card-title">文件查找工具</span>
+        </span>
+        <span class="toy-card-desc">高效查找您 Windows PC 上的文件</span>
+      </a>
+      <a class="toy-card" href="shenmi.html">
+        <span class="toy-card-header">
+          <span class="toy-card-title">非常神秘的项目</span>
+        </span>
+        <span class="toy-card-desc">ysnb</span>
+      </a>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

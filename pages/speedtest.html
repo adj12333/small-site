@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <title>网速测试 · 泠风吹梦的小站</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">泠风吹梦的小站</a>
+    <nav class="site-nav">
+      <a href="../index.html">首页</a>
+      <a href="tools.html">开发的小玩意</a>
+      <a href="speedtest.html">网速测试</a>
+      <a href="chat.html">与deepseek聊天</a>
+      <a href="about.html">小站介绍</a>
+    </nav>
+  </header>
+
+  <main class="site-main">
+    <h1>网速测试</h1>
+
+    <div class="speedtest">
+      <div class="st-metrics">
+        <div class="st-metric">
+          <div class="st-value" id="ping-value">--</div>
+          <div class="st-unit">ms 延迟</div>
+        </div>
+        <div class="st-metric">
+          <div class="st-value" id="dl-value">--</div>
+          <div class="st-unit">Mbps 下载</div>
+        </div>
+      </div>
+
+      <button id="btn-test" class="st-btn" type="button">开始测试</button>
+
+      <div class="st-progress">
+        <div class="st-progress-bar" id="st-progress-bar"></div>
+      </div>
+      <div class="st-status" id="st-status">点击「开始测试」测量到本站的网络速度</div>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+  <script src="../js/speedtest.js"></script>
+</body>
+</html>
