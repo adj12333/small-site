@@ -1348,9 +1348,7 @@
   })();
 
   // 3) 软导航：站内页面切换，保持 audio 常驻
-  var PAGE_SCRIPTS = {
-    'speedtest.html': '../js/speedtest.js'
-  };
+  var PAGE_SCRIPTS = {};
 
   // 全屏 iframe：承载星环游戏 / 神秘彩蛋页等特殊页面，游戏在独立文档中运行，音乐不断
   var specialFrame = document.createElement('iframe');
