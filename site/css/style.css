@@ -11,7 +11,7 @@
   --color-muted: #999999;
   --color-line: #e5e5e5;
   --color-bg: #ffffff;
-  --glass-bg: rgba(255, 255, 255, 0.2);
+  --glass-bg: rgba(255, 255, 255, 0.03);
   --glass-border: rgba(255, 255, 255, 0.6);
   --glass-highlight: rgba(255, 255, 255, 0.7);
   --glass-shadow: rgba(0, 0, 0, 0.14);
@@ -23,7 +23,7 @@
   --color-muted: #8a8a8a;
   --color-line: #2e2e2e;
   --color-bg: #141414;
-  --glass-bg: rgba(30, 30, 30, 0.2);
+  --glass-bg: rgba(30, 30, 30, 0.03);
   --glass-border: rgba(255, 255, 255, 0.16);
   --glass-highlight: rgba(255, 255, 255, 0.14);
   --glass-shadow: rgba(0, 0, 0, 0.5);
@@ -345,7 +345,7 @@ body {
   margin-top: 0;
 }
 
-/* 音频可视化（圆形面板，在线真实频谱 / 本地装饰动画，64 根圆周竖条） */
+/* 音频可视化（圆形线条波形 + 柱） */
 .visualizer {
   flex: 0 0 122px;
   width: 122px;
@@ -353,24 +353,74 @@ body {
   position: relative;
   border: 1px solid var(--color-line);
   border-radius: 50%;
+  color: var(--color-text);
+  overflow: hidden;
+}
+
+/* 背景光环 */
+.visualizer::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--color-line);
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+.visualizer.playing::before {
+  opacity: 0.55;
+  animation: ring-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes ring-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+.visualizer .vis-waveform {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.35;
+  transition: opacity 0.2s ease;
+  z-index: 2;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+
+.visualizer.playing .vis-waveform {
+  opacity: 1;
+}
+
+.visualizer .vis-dot {
+  opacity: 0.4;
+  transition: opacity 0.3s ease;
+}
+
+.visualizer.playing .vis-dot {
+  opacity: 0.9;
 }
 
 .visualizer .bar {
   position: absolute;
   left: 50%;
   top: calc(50% - 44px);
-  width: 2px;
+  width: 1.6px;
   height: 44px;
-  margin-left: -1px;
-  background: var(--color-text);
+  margin-left: -0.8px;
   transform-origin: 50% 100%;
   transform: translateY(-24px) scaleY(0.125);
-  opacity: 0.45;
-  transition: opacity 0.2s ease;
+  opacity: 0.25;
+  border-radius: 1px 1px 0 0;
+  transition: opacity 0.3s ease;
+  z-index: 1;
+  box-shadow: 0 0 4px currentColor;
 }
 
 .visualizer.playing .bar {
-  opacity: 1;
+  opacity: 0.85;
 }
 
 /* 窄屏：双栏改上下堆叠，圆形可视化居中 */
@@ -905,8 +955,8 @@ body {
   width: 340px;
   max-width: calc(100vw - 24px);
   background: var(--glass-bg);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
   border: 1px solid var(--glass-border);
   border-radius: 16px;
   box-shadow: 0 8px 32px var(--glass-shadow), inset 0 1px 0 var(--glass-highlight);
@@ -931,8 +981,8 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  top: -14px;
-  bottom: -4px;
+  top: -20px;
+  bottom: -8px;
 }
 
 .mini-player.dragging .mini-drag {

@@ -26,13 +26,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=BASE_DIR, **kwargs)
 
     def end_headers(self):
-        # 禁用缓存，避免改动 CSS/JS 后浏览器仍使用旧版本
-        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        # HTML/CSS/JS/API 禁用缓存，避免改动后浏览器仍使用旧版本
+        # 音频/视频/图片等静态资源允许缓存，加快旁路切换速度
+        path = self.path.split('?')[0].lower()
+        if path.endswith(('.html', '.css', '.js', '.json')) or self.path.startswith('/api/'):
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        else:
+            self.send_header("Cache-Control", "public, max-age=3600")
         super().end_headers()
 
     def _is_forbidden(self):
         # 禁止访问 server 目录，防止 key.txt / proxy.py 泄露
-        return self.path.startswith("/server")
+        return self.path.startswith("/site/server")
 
     def do_GET(self):
         if self._is_forbidden():
@@ -94,7 +99,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "audio/mpeg")
         self.send_header(
             "Content-Disposition",
-            "attachment; filename=\"music.mp3\"; filename*=UTF-8''%s" % quote(filename),
+            "attachment; filename=\"%s\"; filename*=UTF-8''%s" % (filename, quote(filename)),
         )
         self._send_cors()
         self.send_header("Content-Length", str(len(data)))
@@ -397,7 +402,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     server = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print("站点已启动：http://localhost:%d" % PORT)
+    print("站点已启动：http://localhost:%d/site/" % PORT)
     print("按 Ctrl+C 停止")
     try:
         server.serve_forever()

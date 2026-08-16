@@ -2,6 +2,7 @@
 // 在线音源地址可替换，见 METING_API
 (function () {
   var STORAGE_KEY = 'music-user-songs';
+  var HISTORY_KEY = 'music-play-history';
   var METING_API = 'https://api.i-meto.com/meting/api';
 
   var audio = new Audio();
@@ -15,7 +16,8 @@
   var searchTimer = null;
   var searching = false;
   var searchAbort = null;   // 取消过期搜索请求，避免快速输入时旧结果覆盖新结果
-  var historyList = [];     // 播放历史（会话内，记录实际播放过的歌曲）
+  var searchCache = {};      // 搜索结果缓存，避免重复请求
+  var historyList = loadHistory();     // 播放历史（持久化到 localStorage）
   var historyMode = false;  // 是否处于「播放历史」列表视图
 
   var searchEl = document.getElementById('music-search');
@@ -42,16 +44,47 @@
   var multichannelToggle = document.getElementById('multichannel-toggle');
   var loopToggle = document.getElementById('loop-toggle');
   var visualizer = document.getElementById('visualizer');
-  // 生成 64 根圆周竖条（圆形可视化，角度由 JS 计算）
-  for (var b = 0; b < 64; b++) {
+  // 创建 SVG 圆形线条波形 + 中心脉冲圆点
+  var svgNS = 'http://www.w3.org/2000/svg';
+  var visSvg = document.createElementNS(svgNS, 'svg');
+  visSvg.setAttribute('viewBox', '0 0 122 122');
+  visSvg.setAttribute('width', '122');
+  visSvg.setAttribute('height', '122');
+  visSvg.className.baseVal = 'vis-waveform';
+  var visPath = document.createElementNS(svgNS, 'path');
+  visPath.setAttribute('fill', 'none');
+  visPath.setAttribute('stroke', 'currentColor');
+  visPath.setAttribute('stroke-width', '1.2');
+  visPath.setAttribute('stroke-linecap', 'round');
+  visPath.setAttribute('stroke-linejoin', 'round');
+  visSvg.appendChild(visPath);
+  // 中心脉冲圆点
+  var visDot = document.createElementNS(svgNS, 'circle');
+  visDot.setAttribute('cx', '61');
+  visDot.setAttribute('cy', '61');
+  visDot.setAttribute('r', '2');
+  visDot.setAttribute('fill', 'currentColor');
+  visDot.className.baseVal = 'vis-dot';
+  visSvg.appendChild(visDot);
+  visualizer.appendChild(visSvg);
+  // 创建 96 根圆周竖条（叠加在波形上）
+  var BAR_COUNT = 96;
+  var bars = [];
+  for (var b = 0; b < BAR_COUNT; b++) {
     var barEl = document.createElement('span');
     barEl.className = 'bar';
+    // 暖色→冷色渐变：低频橙色 → 高频蓝紫
+    var hue = 30 - (b / BAR_COUNT) * 60;
+    if (hue < 0) hue += 360;
+    barEl.style.background = 'hsl(' + hue.toFixed(0) + ', 80%, 55%)';
+    barEl.style.color = barEl.style.background;
     visualizer.appendChild(barEl);
+    bars.push(barEl);
   }
   var analyser = null;
   var analyserData = null;
   var spectrumRafId = null;
-  var barFallbackTimer = null;
+  var visFallbackTimer = null;
 
   var PLAY_SVG = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>';
   var PAUSE_SVG = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"></path></svg>';
@@ -102,6 +135,23 @@
     }
   }
 
+  function loadHistory() {
+    try {
+      var raw = localStorage.getItem(HISTORY_KEY);
+      if (raw) {
+        var arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return arr;
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  function saveHistory() {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(historyList));
+    } catch (e) {}
+  }
+
   function safePlay() {
     var p = audio.play();
     if (p && typeof p.catch === 'function') {
@@ -133,7 +183,7 @@
       panner = audioCtx.createStereoPanner();
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.5;
+      analyser.smoothingTimeConstant = 0.2;
       analyserData = new Uint8Array(analyser.frequencyBinCount);
       monoNodes = {
         splitter: audioCtx.createChannelSplitter(2),
@@ -145,6 +195,12 @@
       monoNodes.splitter.connect(monoNodes.gain, 1);
       monoNodes.gain.connect(monoNodes.merger);
       rebuildGraph();
+      // 后台播放：AudioContext 被浏览器挂起时自动恢复
+      audioCtx.onstatechange = function () {
+        if (audioCtx.state === 'suspended' && !audio.paused) {
+          audioCtx.resume();
+        }
+      };
     });
   }
 
@@ -153,7 +209,7 @@
     mediaSource.disconnect();
     panner.disconnect();
     analyser.disconnect();
-    monoNodes.merger.disconnect();
+    if (monoNodes) monoNodes.merger.disconnect();
     if (monoOn) {
       mediaSource.connect(monoNodes.splitter);
       monoNodes.merger.connect(analyser);
@@ -171,8 +227,8 @@
     function step(ts) {
       if (start === null) start = ts;
       var t = (ts - start) / 1000;
-      // 周期 6 秒，幅度 0.6（中高烈度，从左声道缓慢过渡到右声道）
-      panner.pan.value = 0.6 * Math.sin((2 * Math.PI * t) / 6);
+      // 周期 6 秒，幅度 0.9（高烈度，从左声道缓慢过渡到右声道）
+      panner.pan.value = 0.9 * Math.sin((2 * Math.PI * t) / 6);
       panLfoId = requestAnimationFrame(step);
     }
     panLfoId = requestAnimationFrame(step);
@@ -183,7 +239,10 @@
       cancelAnimationFrame(panLfoId);
       panLfoId = null;
     }
-    if (panner) panner.pan.value = 0;
+    // 平滑过渡到中心，避免 abrupt pan 变化造成卡顿
+    if (panner && audioCtx) {
+      try { panner.pan.linearRampToValueAtTime(0, audioCtx.currentTime + 0.05); } catch (e) {}
+    }
   }
 
   function setSpatial(on) {
@@ -212,64 +271,106 @@
     }
   }
 
-  // ---------- 音频可视化（圆形：在线真实频谱 / 本地装饰动画，64 根圆周竖条） ----------
-  var VISUALIZER_INNER_RADIUS = 24;   // 柱底到圆心的距离（内半径）
-  var BAR_IDLE_SCALE = 0.125;         // 柱的初始（静止）长度（scaleY）
-  var BAR_FALLBACK_MS = 600;          // 暂停时柱回落到初始长度的动画时长
+  // ---------- 音频可视化（圆形线条波形 + 柱） ----------
+  var VIS_POINTS = 128;       // 波形采样点数
+  var VIS_RADIUS = 20;        // 波形基础半径（与柱底对齐）
+  var VIS_AMPLITUDE = 36;     // 波形最大振幅
+  var VIS_IDLE_MS = 600;      // 暂停时回落到静止态的动画时长
+  var BAR_INNER_RADIUS = 24;  // 柱底到圆心距离
+  var BAR_IDLE_SCALE = 0.125; // 柱静止长度
+
+  function polarToCart(cx, cy, r, angle) {
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  }
+
+  function buildWavePath(values, count) {
+    var cx = 61, cy = 61;
+    var pts = [];
+    for (var i = 0; i < count; i++) {
+      var angle = (i / count) * Math.PI * 2 - Math.PI / 2;
+      var r = VIS_RADIUS + (values[i] / 255) * VIS_AMPLITUDE;
+      pts.push(polarToCart(cx, cy, r, angle));
+    }
+    // 平滑贝塞尔曲线：用中点作为控制点的二次贝塞尔
+    var d = 'M' + pts[0].x.toFixed(1) + ',' + pts[0].y.toFixed(1);
+    for (var i = 1; i < count; i++) {
+      var mx = (pts[i - 1].x + pts[i].x) / 2;
+      var my = (pts[i - 1].y + pts[i].y) / 2;
+      d += ' Q' + pts[i - 1].x.toFixed(1) + ',' + pts[i - 1].y.toFixed(1) + ' ' + mx.toFixed(1) + ',' + my.toFixed(1);
+    }
+    var lmx = (pts[count - 1].x + pts[0].x) / 2;
+    var lmy = (pts[count - 1].y + pts[0].y) / 2;
+    d += ' Q' + pts[count - 1].x.toFixed(1) + ',' + pts[count - 1].y.toFixed(1) + ' ' + lmx.toFixed(1) + ',' + lmy.toFixed(1);
+    d += ' Z';
+    return d;
+  }
 
   function setBarTransform(bar, i, count, scale) {
     var angle = (i / count) * 360;
-    bar.style.transform = 'rotate(' + angle + 'deg) translateY(-' + VISUALIZER_INNER_RADIUS + 'px) scaleY(' + scale.toFixed(3) + ')';
+    bar.style.transform = 'rotate(' + angle + 'deg) translateY(-' + BAR_INNER_RADIUS + 'px) scaleY(' + scale.toFixed(3) + ')';
   }
 
-  // 清除柱上的过渡样式与回落计时器（用于恢复播放时的即时响应）
   function clearBarTransitions() {
-    if (barFallbackTimer !== null) {
-      clearTimeout(barFallbackTimer);
-      barFallbackTimer = null;
-    }
-    var bars = visualizer.children;
     for (var i = 0; i < bars.length; i++) {
       bars[i].style.transition = '';
     }
   }
 
-  // 仅取消动画循环，不做回落（播放/切换源时先复位再重新启动）
   function cancelSpectrum() {
     if (spectrumRafId !== null) {
       cancelAnimationFrame(spectrumRafId);
       spectrumRafId = null;
     }
+    if (visFallbackTimer !== null) {
+      clearTimeout(visFallbackTimer);
+      visFallbackTimer = null;
+    }
+    visPath.style.transition = '';
     clearBarTransitions();
   }
 
   function startSpectrum() {
     cancelSpectrum();
     if (!analyser || !analyserData || !visualizer.classList.contains('real')) return;
-    var bars = visualizer.children;
-    var count = bars.length;
-    // 线性映射到有效频段（0 ~ 15kHz），跳过 15kHz 以上几乎无能量的死区，
-    // 让左上方的高频柱也能分到有能量的频段；不再额外放大高频。
     var nyquist = audioCtx.sampleRate / 2;
     var maxFreq = Math.min(15000, nyquist * 0.95);
     var maxBin = Math.max(1, Math.floor(maxFreq / nyquist * analyserData.length));
+    var values = new Array(VIS_POINTS);
     function step() {
       analyser.getByteFrequencyData(analyserData);
-      for (var i = 0; i < count; i++) {
-        var binStart = Math.floor(i * maxBin / count);
-        var binEnd = Math.floor((i + 1) * maxBin / count);
+      var total = 0;
+      // 波形：128 点
+      for (var i = 0; i < VIS_POINTS; i++) {
+        var binStart = Math.floor(i * maxBin / VIS_POINTS);
+        var binEnd = Math.floor((i + 1) * maxBin / VIS_POINTS);
         if (binEnd <= binStart) binEnd = binStart + 1;
         var sum = 0;
         for (var j = binStart; j < binEnd; j++) sum += analyserData[j];
         var avg = sum / (binEnd - binStart);
-        // 最低频段（正上方及向右 3 根）能量常顶满，加一点负增益；
-        // 左上方高频段能量偏弱，加一点正增益让其更跟手。
         var gain = 1;
-        if (i < 4) gain = 0.85;
-        else if (i >= 48) gain = 1.12;
-        var scale = 0.15 + (avg / 255) * 0.68 * gain;
-        setBarTransform(bars[i], i, count, scale);
+        if (i < 16) gain = 0.8;
+        else if (i >= 96) gain = 1.25;
+        values[i] = Math.min(255, (avg * 0.6 * gain) + 50);
+        total += avg;
       }
+      // 柱：96 点，独立频率映射
+      for (var k = 0; k < BAR_COUNT; k++) {
+        var bs = Math.floor(k * maxBin / BAR_COUNT);
+        var be = Math.floor((k + 1) * maxBin / BAR_COUNT);
+        if (be <= bs) be = bs + 1;
+        var bsum = 0;
+        for (var bj = bs; bj < be; bj++) bsum += analyserData[bj];
+        var bavg = bsum / (be - bs);
+        var bgain = 1;
+        if (k < 12) bgain = 0.8;
+        else if (k >= 72) bgain = 1.25;
+        setBarTransform(bars[k], k, BAR_COUNT, 0.15 + (bavg / 255) * 0.5 * bgain);
+      }
+      visPath.setAttribute('d', buildWavePath(values, VIS_POINTS));
+      // 中心圆点随整体音量脉冲
+      var avgTotal = total / VIS_POINTS;
+      var dotR = 2 + (avgTotal / 255) * 5;
+      visDot.setAttribute('r', dotR.toFixed(1));
       spectrumRafId = requestAnimationFrame(step);
     }
     spectrumRafId = requestAnimationFrame(step);
@@ -277,16 +378,23 @@
 
   function startDecorative() {
     cancelSpectrum();
-    var bars = visualizer.children;
-    var count = bars.length;
+    var values = new Array(VIS_POINTS);
     var startTs = null;
     function step(ts) {
       if (startTs === null) startTs = ts;
       var t = (ts - startTs) / 1000;
-      for (var i = 0; i < count; i++) {
-        var scale = 0.2 + 0.64 * Math.abs(Math.sin(t * 2.2 + i * 0.4));
-        setBarTransform(bars[i], i, count, scale);
+      for (var i = 0; i < VIS_POINTS; i++) {
+        var scale = 0.35 + 0.5 * Math.abs(Math.sin(t * 2.2 + i * 0.4));
+        values[i] = Math.min(255, scale * 255);
       }
+      for (var k = 0; k < BAR_COUNT; k++) {
+        var bscale = 0.35 + 0.5 * Math.abs(Math.sin(t * 2.2 + k * 0.4 * (128 / BAR_COUNT)));
+        setBarTransform(bars[k], k, BAR_COUNT, bscale);
+      }
+      visPath.setAttribute('d', buildWavePath(values, VIS_POINTS));
+      // 中心圆点脉冲
+      var dotScale = 0.35 + 0.5 * Math.abs(Math.sin(t * 2.2));
+      visDot.setAttribute('r', (2 + dotScale * 3).toFixed(1));
       spectrumRafId = requestAnimationFrame(step);
     }
     spectrumRafId = requestAnimationFrame(step);
@@ -294,20 +402,29 @@
 
   function stopSpectrum() {
     cancelSpectrum();
-    // 暂停/停止时：柱从当前高度平滑回落到初始长度，配合 .playing 移除实现变灰
-    var bars = visualizer.children;
+    // 波形平滑回落到静止圆
+    visPath.style.transition = 'd ' + VIS_IDLE_MS + 'ms ease';
+    var idle = new Array(VIS_POINTS);
+    for (var i = 0; i < VIS_POINTS; i++) idle[i] = 0;
+    visPath.setAttribute('d', buildWavePath(idle, VIS_POINTS));
+    // 中心圆点回落到静止大小
+    visDot.setAttribute('r', '2');
+    // 柱平滑回落到静止长度
     for (var i = 0; i < bars.length; i++) {
-      bars[i].style.transition = 'transform ' + BAR_FALLBACK_MS + 'ms ease, opacity 0.2s ease';
+      bars[i].style.transition = 'transform ' + VIS_IDLE_MS + 'ms ease';
       setBarTransform(bars[i], i, bars.length, BAR_IDLE_SCALE);
     }
-    barFallbackTimer = setTimeout(function () {
+    visFallbackTimer = setTimeout(function () {
+      visPath.style.transition = '';
       clearBarTransitions();
-    }, BAR_FALLBACK_MS + 50);
+    }, VIS_IDLE_MS + 50);
   }
 
   function setVisualizerMode(real) {
     if (real) {
       visualizer.classList.add('real');
+      // 提前建好 Web Audio 链，避免播放中 createMediaElementSource 造成爆音
+      ensureGraph().catch(function () {});
     } else {
       visualizer.classList.remove('real');
       stopSpectrum();
@@ -565,6 +682,7 @@
     }
     historyList.unshift({ key: key, type: isOnline ? 'online' : 'local', source: sourceEl.value, song: song });
     if (historyList.length > 100) historyList.length = 100;
+    saveHistory();
   }
 
   function renderHistory() {
@@ -907,21 +1025,30 @@
   }
 
   function doSearch(kw) {
+    var cacheKey = sourceEl.value + ':' + kw;
+    if (searchCache[cacheKey]) {
+      onlineResults = searchCache[cacheKey];
+      searching = false;
+      renderPlaylist();
+      return;
+    }
+
     if (searchAbort) searchAbort.abort();
     searchAbort = new AbortController();
     clearChannelQueue();
     searching = true;
     renderPlaylist();
 
-    fetch(METING_API + '?server=' + sourceEl.value + '&type=search&id=' + encodeURIComponent(kw), { signal: searchAbort.signal })
+    fetch(METING_API + '?server=' + sourceEl.value + '&type=search&id=' + encodeURIComponent(kw) + '&limit=30', { signal: searchAbort.signal })
       .then(function (resp) { return resp.json(); })
       .then(function (data) {
         onlineResults = Array.isArray(data) ? data : [];
+        searchCache[cacheKey] = onlineResults;
         searching = false;
         renderPlaylist();
       })
       .catch(function (err) {
-        if (err && err.name === 'AbortError') return;  // 已由更新的搜索接管，忽略
+        if (err && err.name === 'AbortError') return;
         onlineResults = [];
         searching = false;
         renderPlaylist();
@@ -948,7 +1075,16 @@
       return;
     }
 
-    searchTimer = setTimeout(function () { doSearch(kw); }, 400);
+    // 最少 2 个字符才开始搜索，避免无效请求
+    if (kw.length < 2) {
+      if (searchAbort) searchAbort.abort();
+      onlineResults = [];
+      searching = false;
+      renderPlaylist();
+      return;
+    }
+
+    searchTimer = setTimeout(function () { doSearch(kw); }, 200);
   });
 
   sourceEl.addEventListener('change', function () {
@@ -1115,7 +1251,7 @@
   }
 
   document.addEventListener('visibilitychange', function () {
-    // 从后台切回时恢复被浏览器挂起的 AudioContext（空间音效/多声道场景）
+    // 从后台切回时恢复被浏览器挂起的 AudioContext
     if (!document.hidden && audioCtx && audioCtx.state === 'suspended') {
       audioCtx.resume();
     }
@@ -1357,6 +1493,6 @@
   syncMini();
 
   setupMediaSession();
-  stopSpectrum();  // 初始化可视化柱到静止态（正确角度）
+  stopSpectrum();  // 初始化波形到静止圆
   renderPlaylist();
 })();
