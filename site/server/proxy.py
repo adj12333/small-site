@@ -18,7 +18,7 @@ sys.dont_write_bytecode = True
 
 PORT = 8080
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
