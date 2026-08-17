@@ -781,6 +781,11 @@ body {
   display: none;
 }
 
+.channel-tag.loading {
+  border-style: dashed;
+  opacity: 0.6;
+}
+
 .history-type {
   display: inline-block;
   margin-left: 8px;

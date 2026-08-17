@@ -400,8 +400,19 @@
     spectrumRafId = requestAnimationFrame(step);
   }
 
-  function stopSpectrum() {
+  function stopSpectrum(fast) {
     cancelSpectrum();
+    if (fast) {
+      // 切歌时跳过 CSS 过渡动画，直接设置静止态，避免 96 根柱的 style 重算造成卡顿
+      var idle = new Array(VIS_POINTS);
+      for (var i = 0; i < VIS_POINTS; i++) idle[i] = 0;
+      visPath.setAttribute('d', buildWavePath(idle, VIS_POINTS));
+      visDot.setAttribute('r', '2');
+      for (var i = 0; i < bars.length; i++) {
+        setBarTransform(bars[i], i, bars.length, BAR_IDLE_SCALE);
+      }
+      return;
+    }
     // 波形平滑回落到静止圆
     visPath.style.transition = 'd ' + VIS_IDLE_MS + 'ms ease';
     var idle = new Array(VIS_POINTS);
@@ -420,14 +431,14 @@
     }, VIS_IDLE_MS + 50);
   }
 
-  function setVisualizerMode(real) {
+  function setVisualizerMode(real, fast) {
     if (real) {
       visualizer.classList.add('real');
       // 提前建好 Web Audio 链，避免播放中 createMediaElementSource 造成爆音
       ensureGraph().catch(function () {});
     } else {
       visualizer.classList.remove('real');
-      stopSpectrum();
+      stopSpectrum(fast);
     }
   }
 
@@ -489,9 +500,19 @@
       channelActive++;
       channelInfo(job).then(function (ch) {
         channelCache[job.cacheKey] = ch;
+        // 同步写入歌曲 ID 二级缓存
+        if (job.isOnline) {
+          var songId = extractSongId(job.song.url);
+          if (songId) {
+            channelCache[(resolveSourceEl.value || 'default') + '|id|' + songId] = ch;
+          }
+        }
+        job.tag.classList.remove('loading');
         applyChannelTag(job.tag, ch);
       }).catch(function () {
         channelCache[job.cacheKey] = 1;
+        job.tag.classList.remove('loading');
+        job.tag.hidden = true;
       }).then(function () {
         channelActive--;
         pumpChannelQueue();
@@ -507,11 +528,27 @@
   function labelChannel(tag, song, isOnline) {
     var baseUrl = isOnline ? song.url : song.src;
     if (!baseUrl) return;
+    // 主缓存：URL 维度
     var cacheKey = (isOnline ? (resolveSourceEl.value || 'default') : 'local') + '|' + baseUrl;
     if (channelCache[cacheKey] !== undefined) {
       applyChannelTag(tag, channelCache[cacheKey]);
       return;
     }
+    // 二级缓存：歌曲 ID 维度（跨搜索复用）
+    if (isOnline) {
+      var songId = extractSongId(song.url);
+      if (songId) {
+        var idKey = (resolveSourceEl.value || 'default') + '|id|' + songId;
+        if (channelCache[idKey] !== undefined) {
+          applyChannelTag(tag, channelCache[idKey]);
+          return;
+        }
+      }
+    }
+    // 入队探测，先显示加载中标签
+    tag.textContent = '加载中';
+    tag.hidden = false;
+    tag.classList.add('loading');
     channelQueue.push({ tag: tag, song: song, isOnline: isOnline, cacheKey: cacheKey });
     pumpChannelQueue();
   }
@@ -670,6 +707,21 @@
     }
   }
 
+  // 切歌时只更新播放列表的 active 状态，不重建整个 DOM，避免大量 DOM 操作造成卡顿
+  function updatePlaylistActive() {
+    var items = playlistEl.querySelectorAll('.playlist-item');
+    for (var i = 0; i < items.length; i++) {
+      var idx = parseInt(items[i].getAttribute('data-index'), 10);
+      if (historyMode) {
+        items[i].classList.remove('active');
+      } else if (isSearchMode()) {
+        items[i].classList.toggle('active', idx === currentOnline);
+      } else {
+        items[i].classList.toggle('active', idx === currentIndex);
+      }
+    }
+  }
+
   function addToHistory(song, isOnline) {
     var key = isOnline ? song.url : song.src;
     if (!key) return;
@@ -703,6 +755,10 @@
       typeTag.className = 'history-type';
       typeTag.textContent = entry.type === 'online' ? '在线' : '本地';
       item.titleText.parentNode.appendChild(typeTag);
+
+      var dlSrc = entry.type === 'online' ? song.url : song.src;
+      var dlName = song.title + ' - ' + (entry.type === 'online' ? (song.author || '未知歌手') : (song.artist || '未知歌手'));
+      item.li.appendChild(makeDownloadLink(dlSrc, dlName));
 
       item.li.addEventListener('click', function () {
         playHistoryEntry(historyList[parseInt(item.li.getAttribute('data-index'), 10)]);
@@ -915,19 +971,20 @@
     playToken++;
     if (resolveAbort) resolveAbort.abort();
     clearChannelQueue();
+    var prevIdx = currentIndex;
     currentIndex = index;
     currentOnline = -1;
     var song = userSongs[index];
     addToHistory(song, false);
     nowPlaying = { type: 'local', baseUrl: song.src, server: '', title: song.title, artist: song.artist || '未知歌手' };
-    setVisualizerMode(false);
+    setVisualizerMode(false, true);
     audio.src = song.src;
     safePlay();
     npTitle.textContent = song.title;
     npArtist.textContent = song.artist || '未知歌手';
     syncMini();
     refreshAudioInfo();
-    renderPlaylist();
+    updatePlaylistActive();
     updateMediaSession();
   }
 
@@ -983,7 +1040,7 @@
       npArtist.textContent = song.author || '未知歌手';
       syncMini();
       refreshAudioInfo();
-      renderPlaylist();
+      updatePlaylistActive();
       updateMediaSession();
     });
   }

@@ -84,11 +84,28 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
         try:
             request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(request, timeout=60) as resp:
+            with urllib.request.urlopen(request, timeout=30) as resp:
                 data = resp.read()
         except Exception as e:
             self._send_json(502, {"error": {"message": "下载失败：%s" % e}})
             return
+
+        # 检测响应是否为 JSON（如 Meting API 返回 {"url":"真实地址"}），需要二次解析
+        if data and data[:1] == b'{':
+            try:
+                info = json.loads(data.decode("utf-8", "ignore"))
+                if isinstance(info, dict) and info.get("url") and info["url"].startswith("http"):
+                    url = info["url"]
+                    request2 = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                    with urllib.request.urlopen(request2, timeout=60) as resp2:
+                        data = resp2.read()
+                elif isinstance(info, str) and info.startswith("http"):
+                    url = info
+                    request2 = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                    with urllib.request.urlopen(request2, timeout=60) as resp2:
+                        data = resp2.read()
+            except Exception:
+                pass  # JSON 解析失败，data 本身就是音频数据，直接用
 
         filename = name.strip() or "music.mp3"
         filename = "".join("_" if ch in '\\/:*?"<>|' else ch for ch in filename)
