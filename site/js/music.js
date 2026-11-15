@@ -1,9 +1,16 @@
-// 音乐播放器：本地手动添加 + 在线搜索（默认音源 Meting / 网易云）
-// 在线音源地址可替换，见 METING_API
+// 音乐播放器：本地手动添加 + 在线搜索（网易云 / QQ音乐 / 酷狗）
+// 在线音源地址可替换，见 ONLINE_APIS
 (function () {
   var STORAGE_KEY = 'music-user-songs';
   var HISTORY_KEY = 'music-play-history';
-  var METING_API = 'https://api.i-meto.com/meting/api';
+  // 在线音源 API：均为公开接口，搜索与播放地址解析可直接在浏览器完成
+  var ONLINE_APIS = {
+    netease: 'https://music-api.gdstudio.xyz/api.php',
+    neteaseBackup: 'https://api.injahow.cn/meting/',
+    tencent: 'https://api.vkeys.cn/v2/music/tencent',
+    kugouSearch: 'https://songsearch.kugou.com/song_search_v2',
+    kugouPlay: 'https://m.kugou.com/app/i/getSongInfo.php'
+  };
 
   var audio = new Audio();
   audio.crossOrigin = 'anonymous';  // 以 CORS 模式加载跨域音频，否则 createMediaElementSource 输出静音
@@ -12,10 +19,11 @@
   var currentIndex = -1;       // 本地歌曲索引；-1 表示未在播本地歌曲
   var currentOnline = -1;      // 在线歌曲索引；-1 表示未在播在线歌曲
   var userSongs = loadUserSongs();
-  var onlineResults = [];      // 在线搜索结果（Meting 原始结构）
+  var onlineResults = [];      // 在线搜索结果（统一结构：title/author/url/server/songId）
   var searchTimer = null;
   var searching = false;
   var searchAbort = null;   // 取消过期搜索请求，避免快速输入时旧结果覆盖新结果
+  var searchSeq = 0;        // JSONP 搜索无法 abort，用序号丢弃过期结果
   var searchCache = {};      // 搜索结果缓存，避免重复请求
   var historyList = loadHistory();     // 播放历史（持久化到 localStorage）
   var historyMode = false;  // 是否处于「播放历史」列表视图
@@ -457,6 +465,7 @@
   var channelCache = {};
   var channelQueue = [];
   var channelActive = 0;
+  var channelFailStreak = 0;   // 连续失败计数：上游异常时停止剩余探测，避免刷屏请求
 
   function applyChannelTag(tag, channels) {
     if (channels > 2) {
@@ -474,7 +483,7 @@
     // 在线歌曲 + 选了播放源：一次请求完成「解析地址 + 声道探测」；失败回退 Meting 地址
     if (job.isOnline && resolveSourceEl.value) {
       var lxSource = SEARCH_TO_LX[sourceEl.value] || '';
-      var songId = extractSongId(job.song.url);
+      var songId = job.song.songId || extractSongId(job.song.url);
       if (lxSource && songId) {
         var url = '/api/music/resolve-info?provider=' + encodeURIComponent(resolveSourceEl.value) +
           '&source=' + encodeURIComponent(lxSource) +
@@ -499,10 +508,11 @@
       var job = channelQueue.shift();
       channelActive++;
       channelInfo(job).then(function (ch) {
+        channelFailStreak = 0;
         channelCache[job.cacheKey] = ch;
         // 同步写入歌曲 ID 二级缓存
         if (job.isOnline) {
-          var songId = extractSongId(job.song.url);
+          var songId = job.song.songId || extractSongId(job.song.url);
           if (songId) {
             channelCache[(resolveSourceEl.value || 'default') + '|id|' + songId] = ch;
           }
@@ -510,9 +520,18 @@
         job.tag.classList.remove('loading');
         applyChannelTag(job.tag, ch);
       }).catch(function () {
+        channelFailStreak++;
         channelCache[job.cacheKey] = 1;
         job.tag.classList.remove('loading');
         job.tag.hidden = true;
+        // 连续 3 次失败视为上游不可用，放弃剩余任务，避免几十个 502 请求
+        if (channelFailStreak >= 3) {
+          while (channelQueue.length) {
+            var rest = channelQueue.shift();
+            rest.tag.classList.remove('loading');
+            rest.tag.hidden = true;
+          }
+        }
       }).then(function () {
         channelActive--;
         pumpChannelQueue();
@@ -536,7 +555,7 @@
     }
     // 二级缓存：歌曲 ID 维度（跨搜索复用）
     if (isOnline) {
-      var songId = extractSongId(song.url);
+      var songId = song.songId || extractSongId(song.url);
       if (songId) {
         var idKey = (resolveSourceEl.value || 'default') + '|id|' + songId;
         if (channelCache[idKey] !== undefined) {
@@ -662,11 +681,12 @@
     if (!item || !item.url || item.url === audio.src) return;
     var wasPlaying = !audio.paused;
     var pos = audio.currentTime || 0;
-    audio.addEventListener('loadedmetadata', function resume() {
-      audio.removeEventListener('loadedmetadata', resume);
+    function onMeta() {
+      audio.removeEventListener('loadedmetadata', onMeta);
       if (wasPlaying) safePlay();
       try { audio.currentTime = pos; } catch (e) {}
-    });
+    }
+    audio.addEventListener('loadedmetadata', onMeta);
     audio.src = item.url;
     currentQualityKey = infoKey(item.info);
     setMultichannelAvailable(item.info.channels >= 2);
@@ -732,7 +752,7 @@
         break;
       }
     }
-    historyList.unshift({ key: key, type: isOnline ? 'online' : 'local', source: sourceEl.value, song: song });
+    historyList.unshift({ key: key, type: isOnline ? 'online' : 'local', source: (isOnline && song.server) || sourceEl.value, song: song });
     if (historyList.length > 100) historyList.length = 100;
     saveHistory();
   }
@@ -808,13 +828,25 @@
     setVisualizerMode(true);
     resolvePlayUrl(song, resolveAbort.signal, entry.source).then(function (url) {
       if (token !== playToken) return;
-      nowPlaying = { type: 'online', baseUrl: url, server: entry.source, title: song.title, artist: song.author || '未知歌手' };
+      nowPlaying = { type: 'online', baseUrl: url, server: song.server || entry.source, title: song.title, artist: song.author || '未知歌手' };
       audio.src = url;
       safePlay();
       npTitle.textContent = song.title;
       npArtist.textContent = song.author || '未知歌手';
       syncMini();
       refreshAudioInfo();
+      updateMediaSession();
+    }).catch(function (err) {
+      if (token !== playToken || (err && err.name === 'AbortError')) return;
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+      nowPlaying = { type: null, baseUrl: '', server: '', title: '', artist: '' };
+      setVisualizerMode(false);
+      setMultichannelAvailable(false);
+      npTitle.textContent = song.title;
+      npArtist.textContent = '加载失败：' + ((err && err.message) || '请尝试其他音源');
+      syncMini();
       updateMediaSession();
     });
   }
@@ -847,12 +879,48 @@
   function makeDownloadLink(src, name) {
     var a = document.createElement('a');
     a.className = 'download-song';
-    a.href = '/api/music/download?url=' + encodeURIComponent(src) + '&name=' + encodeURIComponent(name);
-    a.setAttribute('download', '');
+    var downloadUrl = '/api/music/download?url=' + encodeURIComponent(src) + '&name=' + encodeURIComponent(name);
+    // 不设置 href/download 属性，避免 Safari/移动浏览器忽略 preventDefault 强制导航
+    // 下载 URL 通过 data-dl 属性保存，在 click 事件中通过 fetch+blob 完成下载
+    a.setAttribute('data-dl', downloadUrl);
+    a.setAttribute('role', 'button');
+    a.setAttribute('tabindex', '0');
     a.innerHTML = DOWNLOAD_SVG;
     a.title = '下载';
     a.setAttribute('aria-label', '下载 ' + name);
-    a.addEventListener('click', function (e) { e.stopPropagation(); });
+    a.addEventListener('click', function (e) {
+      e.stopPropagation();
+      e.preventDefault();
+      var url = a.getAttribute('data-dl');
+      a.style.pointerEvents = 'none';
+      fetch(url)
+        .then(function (resp) {
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          return resp.blob();
+        })
+        .then(function (blob) {
+          var blobUrl = URL.createObjectURL(blob);
+          var tmp = document.createElement('a');
+          tmp.href = blobUrl;
+          tmp.download = name.replace(/[\\/:*?"<>|]/g, '_') + '.mp3';
+          document.body.appendChild(tmp);
+          tmp.click();
+          document.body.removeChild(tmp);
+          setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 2000);
+          a.style.pointerEvents = '';
+        })
+        .catch(function () {
+          a.style.pointerEvents = '';
+          window.open(url, '_blank');
+        });
+    });
+    // 键盘可访问：Enter/Space 触发点击
+    a.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        a.click();
+      }
+    });
     return a;
   }
 
@@ -971,7 +1039,6 @@
     playToken++;
     if (resolveAbort) resolveAbort.abort();
     clearChannelQueue();
-    var prevIdx = currentIndex;
     currentIndex = index;
     currentOnline = -1;
     var song = userSongs[index];
@@ -988,39 +1055,149 @@
     updateMediaSession();
   }
 
-  // 播放源解析：默认走 Meting 直链，可选走公益/聚合源（后端代理跨域）
+  // 播放源解析：默认按音源直接解析；可选播放源仍走后端代理（失败自动回退默认解析）
   var SEARCH_TO_LX = { netease: 'wy', tencent: 'tx', kugou: 'kg' };
 
+  function stripTags(text) {
+    return String(text == null ? '' : text).replace(/<[^>]*>/g, '').trim();
+  }
+
+  function absoluteHttps(url) {
+    if (!url) return '';
+    return url.indexOf('http://') === 0 ? 'https://' + url.slice(7) : url;
+  }
+
+  function fetchJson(url, signal) {
+    return fetch(url, signal ? { signal: signal } : undefined).then(function (resp) {
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.json();
+    });
+  }
+
+  // 酷狗接口不返回 CORS 头，改用 JSONP（script 标签不受同源限制）
+  function fetchJsonp(url, timeout) {
+    return new Promise(function (resolve, reject) {
+      var cb = '__music_jsonp_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+      var script = document.createElement('script');
+      var timer = setTimeout(function () {
+        cleanup();
+        reject(new Error('JSONP 请求超时'));
+      }, timeout || 12000);
+      function cleanup() {
+        clearTimeout(timer);
+        try { delete window[cb]; } catch (e) { window[cb] = undefined; }
+        if (script.parentNode) script.parentNode.removeChild(script);
+      }
+      window[cb] = function (data) {
+        cleanup();
+        resolve(data);
+      };
+      script.async = true;
+      script.onerror = function () {
+        cleanup();
+        reject(new Error('JSONP 请求失败'));
+      };
+      script.src = url + (url.indexOf('?') === -1 ? '?' : '&') + 'callback=' + cb;
+      document.head.appendChild(script);
+    });
+  }
+
   function extractSongId(url) {
-    var m = url && url.match(/[?&]id=([^&]+)/);
-    return m ? m[1] : '';
+    var m = url && url.match(/[?&](?:id|mid|hash)=([^&]+)/);
+    if (!m) return '';
+    try {
+      return decodeURIComponent(m[1]);
+    } catch (e) {
+      return m[1];
+    }
   }
 
   function isMetingUrl(url) {
     return !!(url && url.indexOf('meting') !== -1);
   }
 
+  function resolveNetease(song, signal) {
+    var id = song.songId || extractSongId(song.url);
+    if (!id) return Promise.resolve(song.url);
+    var url = ONLINE_APIS.netease + '?types=url&source=netease&id=' + encodeURIComponent(id) + '&br=320';
+    return fetchJson(url, signal).then(function (data) {
+      if (data && data.url) return absoluteHttps(data.url);
+      throw new Error('网易云暂无可用音源');
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') throw err;
+      // 备用：Meting 镜像直链
+      return ONLINE_APIS.neteaseBackup + '?server=netease&type=url&id=' + encodeURIComponent(id);
+    });
+  }
+
+  function resolveTencent(song, signal) {
+    var mid = song.songId || extractSongId(song.url);
+    if (!mid) return Promise.resolve(song.url);
+    function fallback() {
+      return fetchJson(ONLINE_APIS.tencent + '?mid=' + encodeURIComponent(mid), signal).then(function (data) {
+        var playUrl = data && data.code === 200 && data.data && data.data.url;
+        if (playUrl) return absoluteHttps(playUrl);
+        throw new Error('QQ音乐暂无可用音源（可能为付费歌曲）');
+      });
+    }
+    // 后端可用时走收集聚合源（完整音质）；静态预览下自动回退到落月 API
+    var proxyUrl = '/api/music/resolve?provider=collect&source=tx&songId=' + encodeURIComponent(mid);
+    return fetchJson(proxyUrl, signal).then(function (data) {
+      if (data.url) return absoluteHttps(data.url);
+      throw new Error('QQ音乐暂无可用音源');
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') throw err;
+      return fallback();
+    });
+  }
+
+  function resolveKugou(song) {
+    var hash = song.songId || extractSongId(song.url);
+    if (!hash) return Promise.reject(new Error('缺少酷狗歌曲信息'));
+    var url = ONLINE_APIS.kugouPlay + '?cmd=playInfo&format=jsonp&hash=' + encodeURIComponent(hash);
+    return fetchJsonp(url).then(function (data) {
+      var backup = data && data.backup_url;
+      var playUrl = data && (data.url || (Array.isArray(backup) ? backup[0] : backup));
+      if (playUrl) return absoluteHttps(playUrl);
+      throw new Error('酷狗暂无可用音源（可能为付费歌曲）');
+    });
+  }
+
+  function resolveDefaultPlayUrl(song, signal, server) {
+    if (server === 'tencent') return resolveTencent(song, signal);
+    if (server === 'kugou') return resolveKugou(song);
+    if (server === 'netease') return resolveNetease(song, signal);
+    return Promise.resolve(song.url);
+  }
+
   function resolvePlayUrl(song, signal, source) {
     var provider = resolveSourceEl.value;
-    var lxSource = SEARCH_TO_LX[source || sourceEl.value] || '';
-    var songId = extractSongId(song.url);
-    if (!provider || !lxSource || !songId) return Promise.resolve(song.url);
+    var server = song.server || source || sourceEl.value;
+    var lxSource = SEARCH_TO_LX[server] || '';
+    var songId = song.songId || extractSongId(song.url);
+    if (!provider || !lxSource || !songId) {
+      return resolveDefaultPlayUrl(song, signal, server);
+    }
     var url = '/api/music/resolve?provider=' + encodeURIComponent(provider) +
       '&source=' + encodeURIComponent(lxSource) +
       '&songId=' + encodeURIComponent(songId);
-    return fetch(url, signal ? { signal: signal } : undefined)
-      .then(function (resp) { return resp.json(); })
+    return fetchJson(url, signal)
       .then(function (data) {
-        if (data.url) return data.url;
+        if (data.url) return absoluteHttps(data.url);
         throw new Error(data.error && data.error.message || '解析失败');
       })
-      .catch(function () {
-        return song.url;
+      .catch(function (err) {
+        if (err && err.name === 'AbortError') throw err;
+        return resolveDefaultPlayUrl(song, signal, server);
       });
   }
 
   function playOnline(index) {
     if (index < 0 || index >= onlineResults.length) return;
+    if (index === currentOnline) {
+      if (audio.paused) safePlay();
+      return;
+    }
     var song = onlineResults[index];
     addToHistory(song, true);
     if (resolveAbort) resolveAbort.abort();
@@ -1033,13 +1210,28 @@
 
     resolvePlayUrl(song, resolveAbort.signal).then(function (url) {
       if (token !== playToken) return;  // 已被更新的切歌接管，丢弃过期结果
-      nowPlaying = { type: 'online', baseUrl: url, server: sourceEl.value, title: song.title, artist: song.author || '未知歌手' };
+      nowPlaying = { type: 'online', baseUrl: url, server: song.server || sourceEl.value, title: song.title, artist: song.author || '未知歌手' };
       audio.src = url;
       safePlay();
       npTitle.textContent = song.title;
       npArtist.textContent = song.author || '未知歌手';
       syncMini();
       refreshAudioInfo();
+      updatePlaylistActive();
+      updateMediaSession();
+    }).catch(function (err) {
+      if (token !== playToken || (err && err.name === 'AbortError')) return;
+      // 解析失败时停止旧歌曲，避免界面与声音不一致
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+      currentOnline = -1;
+      nowPlaying = { type: null, baseUrl: '', server: '', title: '', artist: '' };
+      setVisualizerMode(false);
+      setMultichannelAvailable(false);
+      npTitle.textContent = song.title;
+      npArtist.textContent = '加载失败：' + ((err && err.message) || '请尝试其他音源');
+      syncMini();
       updatePlaylistActive();
       updateMediaSession();
     });
@@ -1081,10 +1273,81 @@
     }
   }
 
+  function makeOnlineSong(server, id, title, author, url, pic) {
+    return {
+      title: stripTags(title),
+      author: stripTags(author) || '未知歌手',
+      url: url,
+      pic: pic || '',
+      lrc: '',
+      server: server,
+      songId: String(id || '')
+    };
+  }
+
+  function neteaseSongUrl(id) {
+    return ONLINE_APIS.netease + '?types=url&source=netease&id=' + encodeURIComponent(id) + '&br=320';
+  }
+
+  function searchNetease(kw, signal) {
+    var url = ONLINE_APIS.netease + '?types=search&source=netease&name=' + encodeURIComponent(kw) + '&count=30&pages=1';
+    return fetchJson(url, signal).then(function (list) {
+      if (!Array.isArray(list) || !list.length) throw new Error('网易云无搜索结果');
+      return list.map(function (item) {
+        var id = item.url_id || item.id;
+        var artist = Array.isArray(item.artist) ? item.artist.join(' / ') : item.artist;
+        return makeOnlineSong('netease', id, item.name, artist, neteaseSongUrl(id), '');
+      }).filter(function (song) { return song.songId && song.title; });
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') throw err;
+      // 备用搜索：落月 API（播放仍由 GD Studio / Meting 镜像解析）
+      return fetchJson('https://api.vkeys.cn/v2/music/netease?word=' + encodeURIComponent(kw) + '&num=30', signal)
+        .then(function (data) {
+          var list = data && data.code === 200 && Array.isArray(data.data) ? data.data : [];
+          return list.map(function (item) {
+            return makeOnlineSong('netease', item.id, item.song, item.singer, neteaseSongUrl(item.id), item.cover);
+          }).filter(function (song) { return song.songId && song.title; });
+        });
+    });
+  }
+
+  function searchTencent(kw, signal) {
+    var url = ONLINE_APIS.tencent + '?word=' + encodeURIComponent(kw) + '&num=30';
+    return fetchJson(url, signal).then(function (data) {
+      if (!data || data.code !== 200) throw new Error((data && data.message) || 'QQ音乐搜索失败');
+      var list = Array.isArray(data.data) ? data.data : [];
+      return list.map(function (item) {
+        return makeOnlineSong('tencent', item.mid, item.song, item.singer,
+          ONLINE_APIS.tencent + '?mid=' + encodeURIComponent(item.mid), item.cover);
+      }).filter(function (song) { return song.songId && song.title; });
+    });
+  }
+
+  function searchKugou(kw) {
+    var url = ONLINE_APIS.kugouSearch + '?keyword=' + encodeURIComponent(kw) +
+      '&page=1&pagesize=30&platform=WebFilter&userid=-1&clientver=2000' +
+      '&iscorrection=1&privilege_filter=0&filter=10&token=&appid=1014';
+    return fetchJsonp(url).then(function (data) {
+      var list = data && data.data && Array.isArray(data.data.lists) ? data.data.lists : [];
+      return list.map(function (item) {
+        return makeOnlineSong('kugou', item.FileHash, item.SongName, item.SingerName,
+          ONLINE_APIS.kugouPlay + '?cmd=playInfo&hash=' + encodeURIComponent(item.FileHash), '');
+      }).filter(function (song) { return song.songId && song.title; });
+    });
+  }
+
+  function searchOnline(server, kw, signal) {
+    if (server === 'tencent') return searchTencent(kw, signal);
+    if (server === 'kugou') return searchKugou(kw);
+    return searchNetease(kw, signal);
+  }
+
   function doSearch(kw) {
+    var seq = ++searchSeq;
     var cacheKey = sourceEl.value + ':' + kw;
-    if (searchCache[cacheKey]) {
-      onlineResults = searchCache[cacheKey];
+    var cached = searchCache[cacheKey];
+    if (cached && cached.length) {
+      onlineResults = cached;
       searching = false;
       renderPlaylist();
       return;
@@ -1096,16 +1359,17 @@
     searching = true;
     renderPlaylist();
 
-    fetch(METING_API + '?server=' + sourceEl.value + '&type=search&id=' + encodeURIComponent(kw) + '&limit=30', { signal: searchAbort.signal })
-      .then(function (resp) { return resp.json(); })
-      .then(function (data) {
-        onlineResults = Array.isArray(data) ? data : [];
-        searchCache[cacheKey] = onlineResults;
+    searchOnline(sourceEl.value, kw, searchAbort.signal)
+      .then(function (list) {
+        if (seq !== searchSeq) return;
+        onlineResults = list;
+        if (list.length) searchCache[cacheKey] = list;
         searching = false;
         renderPlaylist();
       })
       .catch(function (err) {
         if (err && err.name === 'AbortError') return;
+        if (seq !== searchSeq) return;
         onlineResults = [];
         searching = false;
         renderPlaylist();
@@ -1125,6 +1389,7 @@
 
     if (!kw) {
       if (searchAbort) searchAbort.abort();
+      searchSeq++;
       clearChannelQueue();
       onlineResults = [];
       searching = false;
@@ -1135,6 +1400,7 @@
     // 最少 2 个字符才开始搜索，避免无效请求
     if (kw.length < 2) {
       if (searchAbort) searchAbort.abort();
+      searchSeq++;
       onlineResults = [];
       searching = false;
       renderPlaylist();
@@ -1173,6 +1439,7 @@
     if (historyMode) {
       // 进入历史视图时清空搜索状态，避免与在线搜索列表冲突
       if (searchAbort) searchAbort.abort();
+      searchSeq++;
       clearChannelQueue();
       onlineResults = [];
       searching = false;
@@ -1217,6 +1484,8 @@
     artistEl.value = '';
     urlEl.value = '';
     searchEl.value = '';
+    if (searchAbort) searchAbort.abort();
+    searchSeq++;
     onlineResults = [];
     currentIndex = -1;
     renderPlaylist();
@@ -1402,6 +1671,19 @@
     }
     miniDrag.addEventListener('pointerup', endDrag);
     miniDrag.addEventListener('pointercancel', endDrag);
+
+    // 窗口缩放到移动端尺寸时，重置迷你卡片位置（避免被之前的拖动位置卡在屏幕外）
+    var wasMobile = false;
+    window.addEventListener('resize', function () {
+      var nowMobile = window.innerWidth < 768;
+      if (nowMobile && !wasMobile) {
+        mini.style.left = '';
+        mini.style.top = '';
+        mini.style.bottom = '';
+        mini.style.transform = '';
+      }
+      wasMobile = nowMobile;
+    });
   })();
 
   // 3) 软导航：站内页面切换，保持 audio 常驻

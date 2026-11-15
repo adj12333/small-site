@@ -1,3 +1,25 @@
+// 移动端检测：仅根据视口宽度判断，尊重浏览器「请求桌面端/移动端网站」切换
+// 用户请求桌面端网站时，浏览器会报告更大的视口宽度，自动退回桌面端样式
+(function () {
+  var MOBILE_BREAKPOINT = 768;
+  var root = document.documentElement;
+
+  function updateMobile() {
+    if (window.innerWidth < MOBILE_BREAKPOINT) {
+      root.setAttribute('data-mobile', '');
+    } else {
+      root.removeAttribute('data-mobile');
+    }
+  }
+
+  // 触屏检测（独立于移动端/桌面端模式，触屏笔记本也会移除点击高亮）
+  var isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  if (isTouch) root.setAttribute('data-touch', '');
+
+  updateMobile();
+  window.addEventListener('resize', updateMobile);
+})();
+
 // 导航高亮：根据当前页面给对应导航项加 active 类（可选，缺失不影响使用）
 (function () {
   var links = document.querySelectorAll('.site-nav a');

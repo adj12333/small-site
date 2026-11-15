@@ -14,6 +14,7 @@
     const performanceMonitor = {
         frameCount: 0,
         lastTime: performance.now(),
+        lastLogTime: performance.now(),
         fps: 0,
         memoryUsage: 0,
         gcCount: 0,
@@ -34,111 +35,12 @@
         },
 
         log() {
-            if (this.frameCount % 300 === 0) { // 每5秒记录一次
+            // 每5秒记录一次（按时间而不是帧计数，帧计数每秒会归零）
+            const now = performance.now();
+            if (now - this.lastLogTime >= 5000) {
+                this.lastLogTime = now;
                 console.log(`[Performance] FPS: ${this.fps}, Memory: ${this.memoryUsage}MB`);
             }
-        }
-    };
-
-    // ========== 内存管理器 ==========
-    const memoryManager = {
-        objectPools: new Map(),
-        activeObjects: new Set(),
-        gcThreshold: 100, // 对象池大小阈值
-
-        // 获取对象池中的对象
-        acquire(type, factory) {
-            if (!this.objectPools.has(type)) {
-                this.objectPools.set(type, []);
-            }
-            const pool = this.objectPools.get(type);
-            let obj;
-            if (pool.length > 0) {
-                obj = pool.pop();
-            } else {
-                obj = factory();
-            }
-            this.activeObjects.add(obj);
-            return obj;
-        },
-
-        // 归还对象到对象池
-        release(type, obj) {
-            this.activeObjects.delete(obj);
-            if (!this.objectPools.has(type)) {
-                this.objectPools.set(type, []);
-            }
-            const pool = this.objectPools.get(type);
-            // 限制池大小
-            if (pool.length < this.gcThreshold) {
-                // 重置对象状态
-                if (obj.reset) obj.reset();
-                pool.push(obj);
-            }
-        },
-
-        // 清理对象池
-        clearPool(type) {
-            if (this.objectPools.has(type)) {
-                this.objectPools.set(type, []);
-            }
-        },
-
-        // 获取统计信息
-        getStats() {
-            const stats = {};
-            for (const [type, pool] of this.objectPools.entries()) {
-                stats[type] = pool.length;
-            }
-            return {
-                pools: stats,
-                activeObjects: this.activeObjects.size
-            };
-        }
-    };
-
-    // ========== 批量渲染管理器 ==========
-    const batchRenderer = {
-        batches: new Map(),
-        maxBatchSize: 100,
-
-        // 添加渲染命令
-        add(key, renderFn) {
-            if (!this.batches.has(key)) {
-                this.batches.set(key, []);
-            }
-            const batch = this.batches.get(key);
-            batch.push(renderFn);
-
-            // 达到批次大小时执行
-            if (batch.length >= this.maxBatchSize) {
-                this.execute(key);
-            }
-        },
-
-        // 执行特定批次的渲染
-        execute(key) {
-            if (!this.batches.has(key)) return;
-            const batch = this.batches.get(key);
-            if (batch.length === 0) return;
-
-            // 批量执行渲染命令
-            for (const fn of batch) {
-                fn();
-            }
-            batch.length = 0; // 清空批次
-        },
-
-        // 执行所有批次
-        executeAll() {
-            for (const key of this.batches.keys()) {
-                this.execute(key);
-            }
-        },
-
-        // 清空所有批次
-        clear() {
-            this.batches.clear();
         }
     };
 
@@ -147,7 +49,6 @@
         async preloadAll(uiManager) {
             const resources = {
                 'menuBg': 'main_menu.jpg',
-                'panelBg': 'dialog_interface.jpg',
                 'fighter': 'fight_airplane.png',
                 'battleship': 'warship.png',
                 'asteroidBelt': 'asteroid_resource_belt.jpg'
@@ -187,9 +88,6 @@
     const menuBg = uiManager.resourceManager.get('menuBg');
     if (menuBg) uiManager.menuSystem.setBgImage(menuBg);
 
-    const panelBg = uiManager.resourceManager.get('panelBg');
-    if (panelBg) uiManager.hudSystem.setPanelBgImage(panelBg);
-
     // 阶段3: 初始化游戏核心和音乐系统
     loading.setProgress(60, '正在初始化游戏核心');
     const w = canvas.width / (window.devicePixelRatio || 1);
@@ -201,7 +99,7 @@
     // 初始化音乐管理器（在加载界面初始化）
     loading.setProgress(65, '正在初始化音乐系统');
     const musicManager = new MusicManager();
-    musicManager.init('music/normal.mp3', 'music/fight.mp3');
+    musicManager.init('music/normal.mp3?v=2', 'music/fight.mp3?v=2');
     window.musicManager = musicManager; // 暴露到全局以便设置面板访问
     await new Promise(r => setTimeout(r, 100));
 
@@ -715,6 +613,8 @@
 
     // 显示设备选择面板
     deviceSelectScreen.classList.add('visible');
+    // 暂停菜单输入，避免"确认选择"的鼠标事件穿透到背后的菜单按钮
+    if (uiManager.menuSystem) uiManager.menuSystem.inputDisabled = true;
     // 绘制设备图标替代 emoji
     const deviceIconCanvases = deviceSelectScreen.querySelectorAll('.device-icon-canvas');
     deviceIconCanvases.forEach(canvas => {
@@ -729,6 +629,8 @@
     if (gameContainer) gameContainer.style.pointerEvents = 'none';
     // 等待用户选择设备模式
     await deviceSelectionPromise;
+    // 选择完成后再恢复菜单输入
+    if (uiManager.menuSystem) uiManager.menuSystem.inputDisabled = false;
 
     let isDragging = false;
     let dragStartX = 0;
@@ -821,10 +723,10 @@
                 pingTracker.baseInterval * Math.pow(1.5, pingTracker.consecutiveFails),
                 pingTracker.maxInterval
             );
-        } else if (pingTracker.consecutiveSuccess >= 3) {
-            interval = Math.max(pingTracker.minInterval, pingTracker.baseInterval * 0.7);
         } else if (pingTracker.consecutiveSuccess >= 5) {
             interval = Math.max(pingTracker.minInterval, pingTracker.baseInterval * 0.5);
+        } else if (pingTracker.consecutiveSuccess >= 3) {
+            interval = Math.max(pingTracker.minInterval, pingTracker.baseInterval * 0.7);
         }
 
         pingTracker.currentInterval = interval;
@@ -2519,9 +2421,6 @@
         performanceMonitor.update();
         performanceMonitor.log();
 
-        // 执行批量渲染
-        batchRenderer.executeAll();
-
         originalRender();
         if (this.gameState === 'PLAYING') {
             renderGridLines();
@@ -2537,6 +2436,7 @@
     };
 
     const originalUpdate = uiManager.update.bind(uiManager);
+    let lastResourceCleanup = performance.now();
     uiManager.update = function(dt) {
         originalUpdate(dt);
         if (this.gameState === 'PLAYING' && gameCore && !disconnected) {
@@ -2554,17 +2454,11 @@
                 }
                 musicManager.update(scaledDt / 1000, true);
 
-                // 定期清理内存（每10秒）
-                if (performanceMonitor.frameCount % 600 === 0) {
-                    // 清理未使用的资源
-                    const activeResources = ['menuBg', 'panelBg', 'fighter', 'battleship', 'asteroidBelt'];
+                // 定期清理未使用的资源（每10秒）
+                if (performance.now() - lastResourceCleanup >= 10000) {
+                    lastResourceCleanup = performance.now();
+                    const activeResources = ['menuBg', 'fighter', 'battleship', 'asteroidBelt'];
                     uiManager.resourceManager.releaseUnused(activeResources);
-
-                    // 输出内存统计
-                    const memStats = memoryManager.getStats();
-                    const resStats = uiManager.resourceManager.getStats();
-                    console.log('[Memory] Object pools:', memStats);
-                    console.log('[Memory] Resources:', resStats);
                 }
             }
             if (opponentDisconnected) {

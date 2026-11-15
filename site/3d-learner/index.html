@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>高中数学几何 3D 模拟</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">📐 高中几何 3D 模拟</div>
+    <div class="top-controls">
+      <label class="slider-label">爆炸拆解
+        <input type="range" id="explodeRange" min="0" max="100" value="0" />
+        <span id="explodeVal">0</span>
+      </label>
+      <label class="chk"><input type="checkbox" id="autoRotate" /> 自动旋转</label>
+      <label class="chk"><input type="checkbox" id="wireframeChk" checked /> 线框</label>
+      <label class="chk"><input type="checkbox" id="edgesChk" checked /> 棱边</label>
+      <label class="chk"><input type="checkbox" id="axesChk" checked /> 坐标轴</label>
+      <label class="chk"><input type="checkbox" id="gridChk" checked /> 网格</label>
+      <button id="resetView" class="btn">重置视角</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <div class="tabs">
+        <button class="tab active" data-tab="preset">预设图形</button>
+        <button class="tab" data-tab="custom">自定义多边形</button>
+        <button class="tab" data-tab="compound">组合体</button>
+      </div>
+
+      <section id="tab-preset" class="tab-panel active">
+        <div class="shape-grid" id="shapeGrid"></div>
+        <h4 class="section-title">参数</h4>
+        <div id="presetParams" class="params"></div>
+      </section>
+
+      <section id="tab-custom" class="tab-panel">
+        <p class="hint">点击画布添加底面顶点；右键撤销上一个点；双击或点击按钮生成。</p>
+        <svg id="polyCanvas" width="100%" height="230"></svg>
+        <div class="param-row">
+          <label>成形方式</label>
+          <select id="polyMode">
+            <option value="prism">棱柱（向上拉伸）</option>
+            <option value="pyramid">棱锥（收拢到顶点）</option>
+          </select>
+        </div>
+        <div class="param-row">
+          <label>高度</label>
+          <input type="number" id="polyHeight" value="2" min="0.1" step="0.1" />
+        </div>
+        <div class="btn-row">
+          <button id="polyBuild" class="btn primary">生成几何体</button>
+          <button id="polyClear" class="btn">清空</button>
+        </div>
+        <div id="polyHintCount" class="hint"></div>
+      </section>
+
+      <section id="tab-compound" class="tab-panel">
+        <p class="hint">叠加多个基本体，构建复杂几何（可位移/旋转/缩放）。</p>
+        <div class="btn-row">
+          <button id="addPart" class="btn primary">+ 添加部件</button>
+        </div>
+        <div id="compoundList"></div>
+        <button id="compoundBuild" class="btn primary full">生成组合体</button>
+      </section>
+
+      <section class="info-panel" id="infoPanel"></section>
+    </aside>
+
+    <div class="viewport-wrap">
+      <div class="viewport" id="mainViewport">
+        <canvas id="mainCanvas"></canvas>
+        <div class="view-label">透视图（可旋转）</div>
+        <div class="hint-bar">左键拖动旋转 · 滚轮缩放 · 右键拖动平移</div>
+      </div>
+    </div>
+
+    <aside class="views-panel">
+      <div class="view-box">
+        <canvas id="frontCanvas"></canvas>
+        <div class="view-label">主视图 · 前</div>
+      </div>
+      <div class="view-box">
+        <canvas id="topCanvas"></canvas>
+        <div class="view-label">俯视图</div>
+      </div>
+      <div class="view-box">
+        <canvas id="sideCanvas"></canvas>
+        <div class="view-label">左视图</div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="lib/three.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

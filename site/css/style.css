@@ -704,6 +704,7 @@ body {
   height: 24px;
   color: var(--color-muted);
   border-radius: 50%;
+  cursor: pointer;
   transition: color 0.15s ease, background-color 0.15s ease;
 }
 
@@ -988,4 +989,297 @@ body {
 
 .mini-close:hover {
   color: var(--color-text);
+}
+
+/* ============================================================
+   移动端适配（data-mobile 属性 + 媒体查询双重保障）
+   ============================================================ */
+
+/* 触屏全局：移除点击高亮，防止蓝色闪烁 */
+[data-touch] * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 移动端安全区：为齐刘海 / 底部横条留出空间，同时为迷你卡片留足空间 */
+[data-mobile] body {
+  padding-bottom: max(80px, calc(env(safe-area-inset-bottom, 0px) + 60px));
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+/* ---------- 480px 以下（手机） ---------- */
+@media (max-width: 480px) {
+  /* 全局字号缩小 */
+  html { font-size: 15px; }
+
+  /* 导航栏 */
+  .site-header {
+    padding: 12px 16px;
+    gap: 8px;
+  }
+  .site-nav {
+    gap: 16px;
+  }
+  .site-nav a {
+    font-size: 14px;
+  }
+  .site-title {
+    font-size: 16px;
+  }
+
+  /* 主内容 */
+  .site-main {
+    padding: 24px 16px;
+    max-width: 100%;
+  }
+  .site-main h1 {
+    font-size: 22px;
+  }
+  .site-main p {
+    font-size: 14px;
+  }
+
+  /* 音乐播放器页 */
+  .music-main {
+    max-width: 100%;
+  }
+  .music-layout {
+    gap: 16px;
+  }
+  .player {
+    padding: 16px;
+    border-radius: 10px;
+  }
+
+  /* 搜索栏：selects 强制换行 */
+  .player-search {
+    gap: 6px;
+  }
+  .player-search input {
+    flex: 1 1 100%;
+    min-width: 100%;
+    font-size: 16px;  /* 防止 iOS 缩放 */
+  }
+  .player-search select {
+    flex: 1 1 auto;
+    font-size: 14px;
+    padding: 10px 8px;
+  }
+
+  /* now-playing 信息 */
+  .now-playing {
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .np-cover {
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    border-radius: 8px;
+  }
+  .np-title {
+    font-size: 15px;
+  }
+  .np-artist {
+    font-size: 12px;
+  }
+
+  /* 操作按钮缩小 */
+  .np-actions {
+    gap: 6px;
+  }
+  .more-btn {
+    width: 32px;
+    height: 32px;
+  }
+  .more-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* 更多菜单：防止溢出 */
+  .more-menu {
+    right: -8px;
+    width: 220px;
+  }
+
+  /* 播放控制按钮 */
+  .ctrl-btn {
+    width: 40px;
+    height: 40px;
+  }
+  .ctrl-btn-main {
+    width: 48px;
+    height: 48px;
+  }
+
+  /* 进度条 */
+  .player-progress {
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .time {
+    min-width: 34px;
+    font-size: 12px;
+  }
+
+  /* 可视化圈缩小 */
+  .visualizer {
+    flex: 0 0 90px;
+    width: 90px;
+    height: 90px;
+  }
+
+  /* 播放列表 */
+  .playlist-item {
+    padding: 8px 10px;
+    gap: 4px;
+  }
+  .pl-title {
+    font-size: 14px;
+  }
+  .pl-artist {
+    font-size: 12px;
+  }
+  .channel-tag,
+  .history-type {
+    font-size: 10px;
+    padding: 1px 4px;
+    margin-left: 4px;
+  }
+
+  /* 下载/删除按钮保持触屏可点 */
+  .download-song,
+  .remove-song {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* 添加歌曲表单 */
+  .add-song {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
+  .add-song-form input {
+    font-size: 16px;
+  }
+
+  /* 迷你播放器卡片缩小 */
+  .mini-player {
+    width: auto;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    transform: none;
+    max-width: none;
+    border-radius: 12px;
+  }
+  .mini-body {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .mini-cover {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    font-size: 15px;
+    border-radius: 6px;
+  }
+  .mini-title {
+    font-size: 13px;
+  }
+  .mini-artist {
+    font-size: 11px;
+  }
+  .mini-drag {
+    height: 8px;
+  }
+
+  /* 页脚 */
+  .site-footer {
+    padding: 16px 16px;
+  }
+
+  /* 主题切换按钮上移，避免与迷你卡片重叠 */
+  .theme-toggle {
+    right: 12px;
+    bottom: 80px;
+    width: 38px;
+    height: 38px;
+  }
+
+  /* 小玩意卡片 */
+  .toy-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .toy-card {
+    padding: 16px;
+  }
+}
+
+/* ---------- 481px ~ 600px（小平板 / 大屏手机横屏） ---------- */
+@media (min-width: 481px) and (max-width: 600px) {
+  .site-header {
+    padding: 16px 24px;
+  }
+  .site-main {
+    padding: 40px 24px;
+  }
+  .site-main h1 {
+    font-size: 26px;
+  }
+
+  .player {
+    padding: 20px;
+  }
+  .player-search input {
+    flex: 1 1 100%;
+    min-width: 100%;
+  }
+
+  .visualizer {
+    flex: 0 0 100px;
+    width: 100px;
+    height: 100px;
+  }
+
+  .mini-player {
+    width: auto;
+    left: 24px;
+    right: 24px;
+    bottom: 14px;
+    transform: none;
+    max-width: none;
+  }
+}
+
+/* ---------- 600px ~ 800px（平板竖屏） ---------- */
+@media (min-width: 601px) and (max-width: 800px) {
+  .site-header {
+    padding: 18px 32px;
+  }
+  .site-main {
+    padding: 56px 32px;
+  }
+
+  .visualizer {
+    flex: 0 0 110px;
+    width: 110px;
+    height: 110px;
+  }
+
+  .mini-player {
+    width: 320px;
+  }
+}
+
+/* 移动端：播放列表 active 框选修复（避免 position:relative 层级问题） */
+[data-mobile] .playlist-item {
+  position: relative;
+}
+
+/* 移动端：迷你卡片拖动后重置 CSS 变量（避免被 JS 写死的 left/top 锁定） */
+[data-mobile] .mini-player:not(.dragging) {
+  transition: left 0.3s ease, right 0.3s ease, bottom 0.3s ease;
 }

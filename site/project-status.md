@@ -10,7 +10,7 @@
 ## 二、目标
 
 - 打造结构清晰、极简风格的个人小站。
-- 逐步落实各入口（开发的小玩意 / 网速测试 / 小站介绍）的具体功能。
+- 逐步落实各入口（开发的小玩意 / 小站介绍）的具体功能。
 - 最终通过内网穿透或已有域名对外开放访问。
 
 ## 三、开发重点（约束与规则）
@@ -27,14 +27,14 @@
 ### 已完成
 
 - [x] 站名确定：泠风吹梦的小站。
-- [x] index.html 主界面：顶部导航（4 项）+ 底部灰色小字 `power by trae`。
+- [x] index.html 主界面：顶部导航（3 项）+ 底部灰色小字 `power by trae`。
 - [x] 小站介绍：完善页面内容（含制作与来源信息）。
 - [x] 开发的小玩意：新增「星环」星际即时策略游戏卡片（BETA 标签），游戏目录移至 games/starring。
 - [x] 开发的小玩意：新增「音乐播放器」（在线搜索 + 正在播放 + 播放控制 + 手动添加音源），页面 pages/music.html，逻辑 js/music.js。
-- [x] 开发的小玩意：新增「文件查找工具」卡片（点击下载 FileSearch.exe），文件移至 downloads/。
+- [x] 开发的小玩意：新增「文件查找工具」卡片，改用百度网盘分享（站内不再托管 .exe）。
 - [x] 开发的小玩意：新增「非常神秘的项目」卡片（ysnb），页面移至 pages/shenmi.html。
-- [x] 网速测试：实现延迟 + 下载速度测试（到本站），页面 pages/speedtest.html，逻辑 js/speedtest.js，测速文件 speedtest/100mb.bin。
-- [x] 全站极简样式 css/style.css（统一变量，含日/夜间主题、卡片、播放器、网速测试）。
+- [x] 开发的小玩意：新增「3D几何模拟」卡片，集成 3d-learner（预设几何体 / 自定义多边形 / 组合体 / 三视图）。
+- [x] 全站极简样式 css/style.css（统一变量，含日/夜间主题、卡片、播放器）。
 - [x] 导航高亮 + 日/夜间模式切换（右下角按钮，交叉淡入淡出）js/main.js。
 - [x] rules.md 同步「结构」栏并整理 importance。
 - [x] 主文件夹重命名：d:\项目 → d:\lingsite（英文规范名）。
@@ -52,7 +52,16 @@
 - [x] 音乐播放器支持后台播放：注册 Media Session（锁屏/通知栏播放控制与歌曲信息）+ audio 增加 playsinline + 切回前台自动恢复被浏览器挂起的 AudioContext（修复手机切后台/锁屏后音乐停止）。
 - [x] 音频可视化：页面右侧独立面板（顶部与播放器卡片对齐），在线音源走真实频谱（Web Audio AnalyserNode 驱动 10 根柱），本地音源走装饰动画；播放列表按声道打标签（多声道 >2 / 双声道 =2 / 单声道不标）。
 - [x] 公益/聚合音源接入框架：后端 /api/music/resolve 代理（收集聚合/新澜/聆川/聚合API/星海 五种播放源，规避跨域），前端新增「播放源」下拉（搜索仍用 Meting，播放可走新源，失败自动回退）；实测多数第三方接口已失效/维护中，仅「收集聚合-QQ(cyapi.top)」可用，框架待恢复。
+- [x] 在线音源修复：替换失效的 Meting 地址，网易云改用 GD Studio（备用 Meting 镜像）、QQ音乐改用后端收集聚合源（静态预览回退落月 API）、酷狗改用官方搜索/播放接口（JSONP）；三音源搜索与播放恢复。
 - [x] 站内播放器适配：站内软导航（点击导航不整页刷新，音乐不断，播放器以底部可拖动迷你卡片常驻，liquid glass 玻璃质感），星环游戏 / 神秘彩蛋页用全屏 iframe 承载（游戏在独立文档中运行，音乐不中断）。
+- [x] 移动端适配：按视口宽度切换（尊重浏览器「请求桌面端/移动端网站」），导航 / 主内容 / 播放器 / 迷你卡片响应式；音乐下载改为 fetch+blob，兼容移动端浏览器。
+- [x] 删除网速测试功能（页面 / 脚本 / 测速文件 / 导航入口）及遗留空目录。
+- [x] 代码精简：移除星环中未使用的 H265Crypto、分层渲染 / 批量渲染 / 对象池等空架代码，修复设备选择点击穿透、性能统计与资源清理永不触发等问题；3D 模拟改为按需渲染、合并重建请求并复用棱边几何。
+- [x] 服务端合并：音乐接口抽为 server/music_api.py 供 proxy.py 复用，删除无引用的 server/usage.json；抑制音频拖动引起的连接重置报错。
+- [x] 本地预览简化：移除 serve.bat / _serve.py 的端口切换逻辑，改用 npm start（http-server，8000 端口）。
+- [x] 星环音乐优化：MusicManager 改为 preload=none，5.9MB 背景音乐不再随加载界面预下载；战斗音乐进入战斗时才加载；解锁手势后按当前状态播放对应曲目。
+- [x] 星环资源与特效修复：删除未被引用的 panelBg（dialog_interface.jpg，550KB）及 HUDSystem 冗余字段/方法，预加载由 5 项降为 4 项；修复单位尾焰/离子尾迹的渐变缓存位置错误（按单位坐标缓存导致尾焰画在旧位置），改为每帧创建；移除从未被调用的爆炸/能量场/收集/波纹粒子子系统（约 200 行）。
+- [x] 安全加固：静态服务仅开放 /site 与 /api（根路径 302 到 /site/），路径经解码 + 规范化 + 大小写归一校验，修复 server 密钥、仓库 .git、yinyuan 音源脚本与 rules 文档可被直接下载的问题；音乐下载/信息接口仅允许公网地址，拒绝回环/内网/保留地址，防止代理被当作 SSRF 读取本机文件。
 
 ### 待办
 
@@ -62,40 +71,37 @@
 ## 五、重要上下文
 
 - 站名：泠风吹梦的小站。
-- 导航共 4 项：首页、开发的小玩意、网速测试、小站介绍。
-- 4 项入口均已落实。
+- 导航共 3 项：首页、开发的小玩意、小站介绍。
+- 3 项入口均已落实。
 - 技术栈：前端纯静态 HTML / CSS / JS；后端为 Python 代理 server/proxy.py（仅静态文件服务 + 音乐播放源解析/下载代理，无第三方依赖）。
 - 项目根目录：d:\lingsite。
 - 主文件夹命名禁止中文，已由「项目」重命名为 lingsite。
 - 日/夜间模式：右下角按钮切换，主题存 localStorage，首次访问跟随系统偏好，切换时交叉淡入淡出（旧主题渐隐、新主题渐显）。
-- 音乐播放器音源：在线搜索走 Meting 公开 API（支持跨域），音源下拉可选网易云（netease）/ QQ音乐（tencent）/ 酷狗（kugou）；手动添加 mp3 直链持久化到 localStorage。列表每首歌旁有下载按钮，走后端 /api/music/download 代理下载 mp3。
-- 网速测试：需通过 HTTP 方式访问（file:// 下 fetch 会被浏览器拦截）。
+- 音乐播放器音源：在线搜索走公开 API（支持跨域/JSONP）：网易云 GD Studio、QQ音乐 收集聚合/落月 API、酷狗官方接口；音源下拉可选网易云（netease）/ QQ音乐（tencent）/ 酷狗（kugou）。手动添加 mp3 直链持久化到 localStorage。列表每首歌旁有下载按钮，走后端 /api/music/download 代理下载 mp3。
 
 ## 六、目录结构
 
 ```
-d:\lingsite
-├─ index.html            主界面（4 项导航 + power by trae）
+d:\lingsite\site
+├─ index.html            主界面（3 项导航 + power by trae）
 ├─ rules.md              项目规则与结构、importance
 ├─ project-status.md     本文件（项目状态汇总）
+├─ package.json          本地预览：npm start（http-server，8000 端口）
 ├─ css\
-│  └─ style.css          全站极简样式（含日/夜间主题、卡片、播放器、网速测试）
+│  └─ style.css          全站极简样式（含日/夜间主题、卡片、播放器）
 ├─ js\
-│  ├─ main.js            导航高亮 + 日/夜间切换
-│  ├─ music.js           音乐播放器逻辑
-│  └─ speedtest.js       网速测试逻辑
+│  ├─ main.js            移动端检测 + 导航高亮 + 日/夜间切换
+│  └─ music.js           音乐播放器逻辑
 ├─ server\
-│  └─ proxy.py           本地代理（静态服务 + /api/music/download 下载代理 + /api/music/info 音频信息 + /api/music/resolve 播放源解析）
+│  ├─ proxy.py           本地代理（静态服务 + 音乐接口，禁止访问 server 目录）
+│  └─ music_api.py       音乐接口混入类（download / info / resolve / resolve-info，供 proxy.py 使用）
 ├─ games\
-│  └─ starring\          星环·天穹 星际即时策略游戏（BETA）
-├─ downloads\
-│  └─ FileSearch.exe      文件查找工具（下载）
-├─ speedtest\
-│  └─ 100mb.bin          网速测试下载文件（100MB）
+│  └─ starring\          星环·天穹 星际即时策略游戏（BETA，含 music/ 背景音乐）
+├─ 3d-learner\           3D 几何模拟（含 lib/three.min.js）
+├─ yinyuan\              收集的音源参考脚本（不参与站点加载）
 └─ pages\
    ├─ tools.html         开发的小玩意（卡片）
    ├─ music.html         音乐播放器（搜索/手动添加音源）
-   ├─ speedtest.html     网速测试（延迟/下载）
    ├─ shenmi.html        非常神秘的项目（ysnb）
    └─ about.html         小站介绍（已完善）
 ```

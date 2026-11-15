@@ -1,0 +1,8 @@
+{
+  "name": "lingsite",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "http-server . -p 8000 -a 0.0.0.0 -c-1"
+  }
+}

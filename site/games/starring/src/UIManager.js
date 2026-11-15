@@ -51,25 +51,6 @@ class UIManager {
             transitionSpeed: 0.25
         };
 
-        // ========== 分层渲染系统 ==========
-        this.layers = {
-            background: null,  // 背景层（星星、星云等）
-            game: null,        // 游戏层（单位、建筑等）
-            ui: null           // UI层（HUD、菜单等）
-        };
-        this.layerCtx = {};
-
-        // ========== 渲染优化 ==========
-        this.renderStats = {
-            drawCalls: 0,
-            lastDrawCalls: 0,
-            frameCount: 0
-        };
-        this._batchRenderQueue = []; // 批量渲染队列
-        this._dirtyLayers = new Set(); // 脏层标记 - 必须在 _initLayerSystem 之前初始化
-
-        this._initLayerSystem();
-
         // 华丽特效开关过渡状态
         this._fancyEffectsTransition = {
             current: 0,   // 当前过渡值 0-1
@@ -163,190 +144,18 @@ class UIManager {
     }
 
     /**
-     * 初始化分层渲染系统
-     */
-    _initLayerSystem() {
-        const dpr = window.devicePixelRatio || 1;
-        const w = this.canvas.width || window.innerWidth || 1920;
-        const h = this.canvas.height || window.innerHeight || 1080;
-
-        // 创建离屏 Canvas 层
-        for (const name of Object.keys(this.layers)) {
-            const layer = document.createElement('canvas');
-            layer.width = Math.max(1, w);
-            layer.height = Math.max(1, h);
-            this.layers[name] = layer;
-            this.layerCtx[name] = layer.getContext('2d', {
-                willReadFrequently: false,
-                alpha: true
-            });
-        }
-
-        // 标记所有层为脏
-        this._markAllLayersDirty();
-    }
-
-    /**
-     * 标记所有层为脏（需要重绘）
-     */
-    _markAllLayersDirty() {
-        Object.keys(this.layers).forEach(name => this._dirtyLayers.add(name));
-    }
-
-    /**
-     * 标记指定层为脏
-     */
-    _markLayerDirty(layerName) {
-        this._dirtyLayers.add(layerName);
-    }
-
-    /**
-     * 调整分层 Canvas 大小
-     */
-    _resizeLayers() {
-        const dpr = window.devicePixelRatio || 1;
-        const w = this.canvas.width;
-        const h = this.canvas.height;
-
-        for (const [name, layer] of Object.entries(this.layers)) {
-            layer.width = w;
-            layer.height = h;
-        }
-
-        this._markAllLayersDirty();
-    }
-
-    /**
-     * 合并所有层到主 Canvas
-     */
-    _composeLayers() {
-        const ctx = this.ctx;
-        const dpr = window.devicePixelRatio || 1;
-        const w = this.canvas.width / dpr;
-        const h = this.canvas.height / dpr;
-
-        // 清空主画布
-        ctx.clearRect(0, 0, w, h);
-
-        // 按顺序绘制各层
-        const layerOrder = ['background', 'game', 'ui'];
-        for (const name of layerOrder) {
-            const layer = this.layers[name];
-            if (layer) {
-                ctx.drawImage(layer, 0, 0, w, h);
-            }
-        }
-    }
-
-    /**
-     * 批量渲染队列执行
-     */
-    _executeBatchRender() {
-        if (this._batchRenderQueue.length === 0) return;
-
-        const ctx = this.ctx;
-        ctx.save();
-
-        // 按类型分组批量渲染
-        const batches = new Map();
-        for (const item of this._batchRenderQueue) {
-            const key = `${item.type}_${item.color || 'default'}`;
-            if (!batches.has(key)) {
-                batches.set(key, []);
-            }
-            batches.get(key).push(item);
-        }
-
-        // 执行批量渲染
-        for (const [key, items] of batches) {
-            if (items.length === 0) continue;
-
-            const first = items[0];
-            ctx.fillStyle = first.color || '#ffffff';
-            ctx.strokeStyle = first.color || '#ffffff';
-            ctx.lineWidth = first.lineWidth || 1;
-
-            ctx.beginPath();
-            for (const item of items) {
-                switch (item.shape) {
-                    case 'rect':
-                        ctx.rect(item.x, item.y, item.w, item.h);
-                        break;
-                    case 'arc':
-                        ctx.moveTo(item.x + item.r, item.y);
-                        ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2);
-                        break;
-                    case 'line':
-                        ctx.moveTo(item.x1, item.y1);
-                        ctx.lineTo(item.x2, item.y2);
-                        break;
-                }
-            }
-
-            if (first.type === 'fill') {
-                ctx.fill();
-            } else {
-                ctx.stroke();
-            }
-
-            this.renderStats.drawCalls++;
-        }
-
-        ctx.restore();
-        this._batchRenderQueue = [];
-    }
-
-    /**
-     * 添加批量渲染项
-     */
-    _addBatchItem(item) {
-        this._batchRenderQueue.push(item);
-        // 当队列达到一定大小时自动执行
-        if (this._batchRenderQueue.length >= 50) {
-            this._executeBatchRender();
-        }
-    }
-
-    /**
-     * 获取渲染统计信息
-     * @returns {Object}
-     */
-    getRenderStats() {
-        return {
-            drawCalls: this.renderStats.lastDrawCalls,
-            dirtyLayers: this._dirtyLayers.size,
-            batchQueueSize: this._batchRenderQueue.length
-        };
-    }
-
-    /**
      * 初始化粒子系统
      */
     _initParticleSystem() {
         this.particles = [];
         this.maxParticles = 80;
-        this.rippleEffects = [];
-        this.explosionParticles = [];
         this.engineTrails = [];
-        this.energyFieldParticles = [];
-        this.collectionParticles = [];
 
         // 初始化基础粒子
         for (let i = 0; i < this.maxParticles; i++) {
             this.particles.push(this._createBaseParticle());
         }
     }
-
-    /**
-     * 粒子类型常量
-     */
-    static PARTICLE_TYPES = {
-        BASE: 'base',
-        EXPLOSION: 'explosion',
-        ENGINE: 'engine',
-        ENERGY_FIELD: 'energyField',
-        COLLECTION: 'collection'
-    };
 
     /**
      * 创建基础粒子（浮动粒子）
@@ -367,37 +176,6 @@ class UIManager {
     }
 
     /**
-     * 创建爆炸粒子
-     */
-    createExplosionParticles(x, y, color = '#f97316', count = 15) {
-        if (this.settings.particles === 'off' || this.settings.particles === 'low') return;
-
-        const gameMap = this.gameCore ? this.gameCore.gameMap : null;
-        if (!gameMap) return;
-
-        const mapW = gameMap.width;
-        const mapH = gameMap.height;
-
-        for (let i = 0; i < count; i++) {
-            const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
-            const speed = 0.003 + Math.random() * 0.005;
-            this.explosionParticles.push({
-                type: 'explosion',
-                x: x / mapW,
-                y: y / mapH,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed,
-                size: 2 + Math.random() * 4,
-                alpha: 1,
-                decay: 0.02 + Math.random() * 0.02,
-                color: color,
-                glow: true,
-                trail: []
-            });
-        }
-    }
-
-    /**
      * 创建引擎尾焰粒子
      */
     createEngineTrail(x, y, angle, color = '#3b82f6') {
@@ -411,7 +189,6 @@ class UIManager {
 
         // 在飞船后方生成粒子
         const backAngle = angle + Math.PI;
-        const offset = 0.01;
 
         this.engineTrails.push({
             type: 'engine',
@@ -425,81 +202,6 @@ class UIManager {
             color: color,
             glow: true,
             shrink: true
-        });
-    }
-
-    /**
-     * 创建能量场粒子
-     */
-    createEnergyFieldParticles(x, y, radius, color = '#8b5cf6') {
-        if (this.settings.particles !== 'high') return;
-
-        const gameMap = this.gameCore ? this.gameCore.gameMap : null;
-        if (!gameMap) return;
-
-        const mapW = gameMap.width;
-        const mapH = gameMap.height;
-
-        // 在基地周围生成旋转的能量粒子
-        const angle = Math.random() * Math.PI * 2;
-        const r = Math.random() * radius;
-
-        this.energyFieldParticles.push({
-            type: 'energyField',
-            centerX: x / mapW,
-            centerY: y / mapH,
-            x: (x + Math.cos(angle) * r) / mapW,
-            y: (y + Math.sin(angle) * r) / mapH,
-            angle: angle,
-            radius: r / Math.max(mapW, mapH),
-            orbitSpeed: 0.001 + Math.random() * 0.002,
-            size: 1.5 + Math.random() * 2,
-            alpha: 0.4 + Math.random() * 0.4,
-            pulsePhase: Math.random() * Math.PI * 2,
-            color: color,
-            glow: true
-        });
-    }
-
-    /**
-     * 创建收集粒子效果
-     */
-    createCollectionParticles(x, y, targetX, targetY, color = '#22c55e') {
-        if (this.settings.particles !== 'high') return;
-
-        const gameMap = this.gameCore ? this.gameCore.gameMap : null;
-        if (!gameMap) return;
-
-        const mapW = gameMap.width;
-        const mapH = gameMap.height;
-
-        for (let i = 0; i < 8; i++) {
-            this.collectionParticles.push({
-                type: 'collection',
-                x: x / mapW,
-                y: y / mapH,
-                targetX: targetX / mapW,
-                targetY: targetY / mapH,
-                vx: (Math.random() - 0.5) * 0.002,
-                vy: (Math.random() - 0.5) * 0.002,
-                size: 2 + Math.random() * 2,
-                alpha: 1,
-                color: color,
-                glow: true,
-                life: 1,
-                decay: 0.015 + Math.random() * 0.01
-            });
-        }
-    }
-
-    /**
-     * 添加波纹效果
-     */
-    _addRipple(x, y, color = '#0ea5e9') {
-        if (!this.settings.fancyEffects) return;
-        this.rippleEffects.push({
-            x, y, radius: 0, alpha: 1, color,
-            maxRadius: 100 + Math.random() * 50
         });
     }
 
@@ -522,28 +224,6 @@ class UIManager {
             if (p.y < 0 || p.y > 1) p.vy *= -1;
         });
 
-        // 更新波纹
-        this.rippleEffects = this.rippleEffects.filter(r => {
-            r.radius += dtSec * 80;
-            r.alpha = 1 - (r.radius / r.maxRadius);
-            return r.alpha > 0;
-        });
-
-        // 更新爆炸粒子
-        this.explosionParticles = this.explosionParticles.filter(p => {
-            p.x += p.vx * dt;
-            p.y += p.vy * dt;
-            p.alpha -= p.decay;
-
-            // 记录拖尾
-            if (p.trail) {
-                p.trail.push({ x: p.x, y: p.y });
-                if (p.trail.length > 5) p.trail.shift();
-            }
-
-            return p.alpha > 0;
-        });
-
         // 更新引擎尾焰
         this.engineTrails = this.engineTrails.filter(p => {
             p.x += p.vx * dt;
@@ -553,34 +233,6 @@ class UIManager {
                 p.size *= 0.98;
             }
             return p.alpha > 0 && p.size > 0.5;
-        });
-
-        // 更新能量场粒子
-        if (this.settings.particles === 'high') {
-            this.energyFieldParticles.forEach(p => {
-                p.angle += p.orbitSpeed * dt;
-                p.x = p.centerX + Math.cos(p.angle) * p.radius;
-                p.y = p.centerY + Math.sin(p.angle) * p.radius;
-                p.pulsePhase += dtSec * 3;
-            });
-
-            // 限制能量场粒子数量
-            if (this.energyFieldParticles.length > 50) {
-                this.energyFieldParticles.splice(0, this.energyFieldParticles.length - 50);
-            }
-        }
-
-        // 更新收集粒子
-        this.collectionParticles = this.collectionParticles.filter(p => {
-            // 向目标移动
-            const dx = p.targetX - p.x;
-            const dy = p.targetY - p.y;
-            p.x += dx * 0.05 + p.vx * dt;
-            p.y += dy * 0.05 + p.vy * dt;
-            p.life -= p.decay;
-            p.alpha = p.life;
-
-            return p.life > 0;
         });
     }
 
@@ -616,42 +268,6 @@ class UIManager {
 
         ctx.globalAlpha = 1;
 
-        // 渲染爆炸粒子
-        if (this.settings.particles !== 'low') {
-            this.explosionParticles.forEach(p => {
-                const x = p.x * w;
-                const y = p.y * h;
-
-                // 渲染拖尾
-                if (p.trail && p.trail.length > 1) {
-                    ctx.strokeStyle = p.color;
-                    ctx.lineWidth = p.size * 0.5;
-                    ctx.globalAlpha = p.alpha * 0.5;
-                    ctx.beginPath();
-                    ctx.moveTo(p.trail[0].x * w, p.trail[0].y * h);
-                    for (let i = 1; i < p.trail.length; i++) {
-                        ctx.lineTo(p.trail[i].x * w, p.trail[i].y * h);
-                    }
-                    ctx.lineTo(x, y);
-                    ctx.stroke();
-                }
-
-                // 发光效果
-                if (p.glow) {
-                    ctx.shadowBlur = p.size * 3;
-                    ctx.shadowColor = p.color;
-                }
-
-                ctx.fillStyle = p.color;
-                ctx.globalAlpha = p.alpha;
-                ctx.beginPath();
-                ctx.arc(x, y, p.size, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.shadowBlur = 0;
-            });
-        }
-
         // 渲染引擎尾焰
         if (this.settings.particles !== 'low') {
             this.engineTrails.forEach(p => {
@@ -674,65 +290,8 @@ class UIManager {
             });
         }
 
-        // 渲染能量场粒子
-        if (this.settings.particles === 'high') {
-            this.energyFieldParticles.forEach(p => {
-                const x = p.x * w;
-                const y = p.y * h;
-                const pulseAlpha = p.alpha * (0.7 + Math.sin(p.pulsePhase) * 0.3);
-
-                // 发光效果
-                if (p.glow) {
-                    ctx.shadowBlur = p.size * 4;
-                    ctx.shadowColor = p.color;
-                }
-
-                ctx.fillStyle = p.color;
-                ctx.globalAlpha = pulseAlpha;
-                ctx.beginPath();
-                ctx.arc(x, y, p.size, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.shadowBlur = 0;
-            });
-        }
-
-        // 渲染收集粒子
-        if (this.settings.particles === 'high') {
-            this.collectionParticles.forEach(p => {
-                const x = p.x * w;
-                const y = p.y * h;
-
-                // 发光效果
-                if (p.glow) {
-                    ctx.shadowBlur = p.size * 2;
-                    ctx.shadowColor = p.color;
-                }
-
-                ctx.fillStyle = p.color;
-                ctx.globalAlpha = p.alpha;
-                ctx.beginPath();
-                ctx.arc(x, y, p.size, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.shadowBlur = 0;
-            });
-        }
-
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'source-over';
-
-        // 渲染波纹
-        this.rippleEffects.forEach(r => {
-            ctx.strokeStyle = r.color;
-            ctx.globalAlpha = r.alpha * 0.5;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(r.x * w, r.y * h, r.radius, 0, Math.PI * 2);
-            ctx.stroke();
-        });
-
-        ctx.globalAlpha = 1;
     }
 
     _initSpaceBackgroundData() {
@@ -900,9 +459,6 @@ class UIManager {
         this._applyAntialiasing();
         this.menuSystem.resize(w, h);
         this.hudSystem.resize(w, h);
-
-        // 调整分层 Canvas 大小
-        this._resizeLayers();
 
         // 重置窗口大小相关的缓存
         this._menuBgGradient = null;
@@ -3534,18 +3090,15 @@ class UIManager {
                     const backY = unit.y - Math.sin(unit.angle) * size * 0.4;
 
                     // 1. 推进器尾焰：红色渐变，长度与速度成正比
-                    const flameKey = `flame_e_${Math.round(tailLen)}_${Math.round(unit.angle * 10)}_${fancyAlphaEnemy.toFixed(2)}`;
-                    const flameGradient = this._getCachedGradient(flameKey, () => {
-                        const g = ctx.createLinearGradient(
-                            unit.x, unit.y,
-                            unit.x - Math.cos(unit.angle) * tailLen,
-                            unit.y - Math.sin(unit.angle) * tailLen
-                        );
-                        g.addColorStop(0, `rgba(239, 68, 68, ${0.6 * fancyAlphaEnemy})`);
-                        g.addColorStop(0.4, `rgba(248, 113, 113, ${0.3 * fancyAlphaEnemy})`);
-                        g.addColorStop(1, 'rgba(254, 202, 202, 0)');
-                        return g;
-                    });
+                    // 渐变的坐标随单位移动，不能缓存（缓存会把尾焰画到旧位置）
+                    const flameGradient = ctx.createLinearGradient(
+                        unit.x, unit.y,
+                        unit.x - Math.cos(unit.angle) * tailLen,
+                        unit.y - Math.sin(unit.angle) * tailLen
+                    );
+                    flameGradient.addColorStop(0, `rgba(239, 68, 68, ${0.6 * fancyAlphaEnemy})`);
+                    flameGradient.addColorStop(0.4, `rgba(248, 113, 113, ${0.3 * fancyAlphaEnemy})`);
+                    flameGradient.addColorStop(1, 'rgba(254, 202, 202, 0)');
 
                     ctx.save();
                     ctx.fillStyle = flameGradient;
@@ -3564,13 +3117,9 @@ class UIManager {
                     ctx.restore();
 
                     // 2. 离子尾迹：半透明红色拖尾，持续0.5秒
-                    const ionKey = `ion_e_${Math.round(tailLen)}_${Math.round(unit.angle * 10)}_${fancyAlphaEnemy.toFixed(2)}`;
-                    const ionGradient = this._getCachedGradient(ionKey, () => {
-                        const g = ctx.createLinearGradient(unit.x, unit.y, backX, backY);
-                        g.addColorStop(0, `rgba(252, 165, 165, ${0.25 * fancyAlphaEnemy})`);
-                        g.addColorStop(1, 'rgba(252, 165, 165, 0)');
-                        return g;
-                    });
+                    const ionGradient = ctx.createLinearGradient(unit.x, unit.y, backX, backY);
+                    ionGradient.addColorStop(0, `rgba(252, 165, 165, ${0.25 * fancyAlphaEnemy})`);
+                    ionGradient.addColorStop(1, 'rgba(252, 165, 165, 0)');
 
                     ctx.strokeStyle = ionGradient;
                     ctx.lineWidth = tailWidth * 0.6;
@@ -3752,18 +3301,15 @@ class UIManager {
                     const backY = unit.y - Math.sin(unit.angle) * size * 0.4;
 
                     // 1. 推进器尾焰：蓝色渐变，长度与速度成正比
-                    const flameKey = `flame_${Math.round(tailLen)}_${Math.round(unit.angle * 10)}_${trailAlpha.toFixed(2)}`;
-                    const flameGradient = this._getCachedGradient(flameKey, () => {
-                        const g = ctx.createLinearGradient(
-                            unit.x, unit.y,
-                            unit.x - Math.cos(unit.angle) * tailLen,
-                            unit.y - Math.sin(unit.angle) * tailLen
-                        );
-                        g.addColorStop(0, `rgba(59, 130, 246, ${0.6 * trailAlpha})`);
-                        g.addColorStop(0.4, `rgba(96, 165, 250, ${0.3 * trailAlpha})`);
-                        g.addColorStop(1, 'rgba(191, 219, 254, 0)');
-                        return g;
-                    });
+                    // 渐变的坐标随单位移动，不能缓存（缓存会把尾焰画到旧位置）
+                    const flameGradient = ctx.createLinearGradient(
+                        unit.x, unit.y,
+                        unit.x - Math.cos(unit.angle) * tailLen,
+                        unit.y - Math.sin(unit.angle) * tailLen
+                    );
+                    flameGradient.addColorStop(0, `rgba(59, 130, 246, ${0.6 * trailAlpha})`);
+                    flameGradient.addColorStop(0.4, `rgba(96, 165, 250, ${0.3 * trailAlpha})`);
+                    flameGradient.addColorStop(1, 'rgba(191, 219, 254, 0)');
 
                     ctx.save();
                     ctx.fillStyle = flameGradient;
@@ -3782,13 +3328,9 @@ class UIManager {
                     ctx.restore();
 
                     // 2. 离子尾迹：半透明蓝色拖尾，持续0.5秒
-                    const ionKey = `ion_${Math.round(tailLen)}_${Math.round(unit.angle * 10)}_${trailAlpha.toFixed(2)}`;
-                    const ionGradient = this._getCachedGradient(ionKey, () => {
-                        const g = ctx.createLinearGradient(unit.x, unit.y, backX, backY);
-                        g.addColorStop(0, `rgba(147, 197, 253, ${0.25 * trailAlpha})`);
-                        g.addColorStop(1, 'rgba(147, 197, 253, 0)');
-                        return g;
-                    });
+                    const ionGradient = ctx.createLinearGradient(unit.x, unit.y, backX, backY);
+                    ionGradient.addColorStop(0, `rgba(147, 197, 253, ${0.25 * trailAlpha})`);
+                    ionGradient.addColorStop(1, 'rgba(147, 197, 253, 0)');
 
                     ctx.strokeStyle = ionGradient;
                     ctx.lineWidth = tailWidth * 0.6;

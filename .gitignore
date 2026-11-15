@@ -1,0 +1,5 @@
+# 工具生成的分享包缓存
+.trae-html-share-packages/
+
+# 截图目录
+.screenshots/

@@ -37,7 +37,8 @@ class MusicManager {
      * 绑定用户交互事件（用于解锁音频自动播放）
      */
     _bindUserInteraction() {
-        const events = ['click', 'keydown', 'touchstart'];
+        // pointerdown 不会被按钮的 click 事件 stopPropagation 拦截，能可靠捕获首次手势
+        const events = ['pointerdown', 'touchstart', 'keydown', 'click'];
         const handler = () => {
             this.userInteracted = true;
             if (this.pendingStart && this.initialized) {
@@ -67,11 +68,13 @@ class MusicManager {
         this.normalMusic.loop = true;
         this.normalMusic.volume = this.targetVolume;
         this.normalMusic.crossOrigin = 'anonymous';
+        this.normalMusic.preload = 'none'; // 延迟到真正播放时再下载，避免加载界面被 5.9MB 音乐拖慢
 
         this.fightMusic = new Audio(fightPath);
         this.fightMusic.loop = true;
         this.fightMusic.volume = 0; // 初始静音
         this.fightMusic.crossOrigin = 'anonymous';
+        this.fightMusic.preload = 'none'; // 进入战斗时才加载
 
         // 不使用Web Audio API，直接使用HTML5 Audio API避免CORS问题
         this.audioContext = null;
@@ -102,15 +105,16 @@ class MusicManager {
      * 实际开始播放音乐
      */
     _doStart() {
-        // 播放普通音乐
-        this.normalMusic.play().then(() => {
-            console.log('[MusicManager] Started playing normal music');
-        }).catch(e => {
-            console.warn('[MusicManager] Failed to play normal music:', e);
-        });
-
-        this.currentState = 'normal';
         this.pendingStart = false;
+        // 按当前状态选择曲目：战斗中解锁时直接播战斗音乐
+        const music = this.currentState === 'fight' ? this.fightMusic : this.normalMusic;
+        // play() 会按需加载（preload=none），不会重复触发
+        music.preload = 'auto';
+        music.play().then(() => {
+            console.log('[MusicManager] Started playing', this.currentState, 'music');
+        }).catch(e => {
+            console.warn('[MusicManager] Failed to play music:', e);
+        });
     }
 
     /**
@@ -172,6 +176,7 @@ class MusicManager {
         this.currentState = 'fight';
 
         // 确保fight音乐已加载并播放
+        this.fightMusic.preload = 'auto';
         this.fightMusic.play().catch(e => {
             console.warn('[MusicManager] Failed to play fight music:', e);
         });
@@ -189,6 +194,12 @@ class MusicManager {
 
         console.log('[MusicManager] Transitioning to normal music');
         this.currentState = 'normal';
+
+        // 普通音乐可能尚未开始（开局即进入战斗），这里补一次播放
+        if (this.normalMusic.paused && this.userInteracted) {
+            this.normalMusic.preload = 'auto';
+            this.normalMusic.play().catch(() => {});
+        }
 
         // 使用简单的音量控制进行淡入淡出
         this._fadeVolume(this.fightMusic, this.targetVolume, 0, this.fadeDuration);

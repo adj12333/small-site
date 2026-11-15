@@ -24,7 +24,6 @@ class HUDSystem {
         this.onRetreatClick = null;
         this.onBuildClick = null;
         this.onUnitSelect = null;
-        this.panelBgImage = null;
         this.selectedEnemy = null;
         this.camera = null;
 
@@ -334,10 +333,6 @@ class HUDSystem {
 
     updateSelectedEnemy(enemy) {
         this.selectedEnemy = enemy || null;
-    }
-
-    setPanelBgImage(img) {
-        this.panelBgImage = img;
     }
 
     init(input) {
